@@ -145,28 +145,28 @@ class TestQuote(TestCase):
                 "xxx xxx",
                 "qux bux",
         ])
-        self.assertTrue(quote.istypo(-1, -1, ord('x'), record=False))
-        self.assertTrue(quote.istypo(0, 0, ord('x'), record=False))
-        self.assertTrue(quote.istypo(9, 9, ord('x'), record=False))
-        self.assertFalse(quote.istypo(0, 0, ord('f'), record=False))
-        self.assertFalse(quote.istypo(1, 3, ord(' '), record=False))
+        self.assertTrue(quote.istypo(-1, -1, 'x', record=False))
+        self.assertTrue(quote.istypo(0, 0, 'x', record=False))
+        self.assertTrue(quote.istypo(9, 9, 'x', record=False))
+        self.assertFalse(quote.istypo(0, 0, 'f', record=False))
+        self.assertFalse(quote.istypo(1, 3, ' ', record=False))
         self.assertFalse(quote.stats.typos)
         # recording
-        self.assertTrue(quote.istypo(-1, -1, ord('x'), record=True))
-        self.assertTrue(quote.istypo(9, 9, ord('x'), record=True))
+        self.assertTrue(quote.istypo(-1, -1, 'x', record=True))
+        self.assertTrue(quote.istypo(9, 9, 'x', record=True))
         self.assertFalse(quote.stats.typos)
         ypos, xpos = 0, 0
-        self.assertTrue(quote.istypo(ypos, xpos, ord('x'), record=True))
+        self.assertTrue(quote.istypo(ypos, xpos, 'x', record=True))
         self.assertIn((ypos, xpos), quote.stats.typos)
         self.assertTrue(quote.stats.typos[ypos, xpos])
-        self.assertFalse(quote.istypo(ypos, xpos, ord('f'), record=True))
+        self.assertFalse(quote.istypo(ypos, xpos, 'f', record=True))
         self.assertIn((ypos, xpos), quote.stats.typos)
         self.assertFalse(quote.stats.typos[ypos, xpos])
         ypos, xpos = 2, 6
-        self.assertTrue(quote.istypo(ypos, xpos, ord('z'), record=True))
+        self.assertTrue(quote.istypo(ypos, xpos, 'z', record=True))
         self.assertIn((ypos, xpos), quote.stats.typos)
         self.assertTrue(quote.stats.typos[ypos, xpos])
-        self.assertFalse(quote.istypo(ypos, xpos, ord('x'), record=True))
+        self.assertFalse(quote.istypo(ypos, xpos, 'x', record=True))
         self.assertIn((ypos, xpos), quote.stats.typos)
         self.assertFalse(quote.stats.typos[ypos, xpos])
 
@@ -210,13 +210,13 @@ class TestQuote(TestCase):
     def test_iscorrect(self):
         quote = speedpad.Quote(["foo bar"])
         self.assertTrue(quote.iscorrect())
-        quote.istypo(0, 0, ord('x'), record=True)
+        quote.istypo(0, 0, 'x', record=True)
         self.assertFalse(quote.iscorrect())
-        quote.istypo(0, 0, ord('f'), record=True)
+        quote.istypo(0, 0, 'f', record=True)
         self.assertTrue(quote.iscorrect())
-        quote.istypo(0, 4, ord('x'), record=True)
+        quote.istypo(0, 4, 'x', record=True)
         self.assertFalse(quote.iscorrect())
-        quote.istypo(0, 4, ord('b'), record=True)
+        quote.istypo(0, 4, 'b', record=True)
         self.assertTrue(quote.iscorrect())
 
 
@@ -921,7 +921,8 @@ class TestSpeedPad(CursesTestCase):
 
     def test_process(self):
         def process(key, keyboard=True):
-            self.instance.process(self.quote, key, keyboard=keyboard)
+            chars = (key,)
+            self.instance.process(self.quote, chars, keyboard=keyboard)
         def reset(quotelines):
             curses.flushinp()
             self.instance.queue.clear()
