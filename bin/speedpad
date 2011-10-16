@@ -403,12 +403,18 @@ class InputStats(object):
         self.typos = {}
         self.keystrokes_typo = 0
         self.keystrokes_good = 0
+        self.keystrokes_tab = 0
+        self.keystrokes_space = 0
+        self.keystrokes_enter = 0
         self.timer = Timer()
 
     def reset(self):
         self.typos = {}
         self.keystrokes_typo = 0
         self.keystrokes_good = 0
+        self.keystrokes_tab = 0
+        self.keystrokes_space = 0
+        self.keystrokes_enter = 0
         self.timer.reset()
 
     def addtypo(self, ypos, xpos, count=1):
@@ -1020,6 +1026,8 @@ class SpeedPad(object):
                 if not quote.stats.timer.started:
                     self.active = True
                     quote.stats.timer.start()
+                if keyboard and ch == curses.ascii.SP:
+                    quote.stats.keystrokes_space += 1
                 s = self.inputbox.decode_chars(chars)
                 if quote.istypo(ypos, xpos, s, record=True,
                                 count=1 if keyboard else 0):
@@ -1041,6 +1049,8 @@ class SpeedPad(object):
             elif newx != xpos:
                 self.quotebox.pad.chgat(ypos, newx, -1, curses.A_NORMAL)
         elif ch == curses.ascii.TAB and writable:
+            if keyboard and self.active:
+                quote.stats.keystrokes_tab += 1
             if self.tabsize:
                 indent = self.tabsize - xpos % self.tabsize
                 remaining = max(0, quote.eol(ypos) - xpos)
@@ -1052,6 +1062,8 @@ class SpeedPad(object):
                     self.queue.append(curses.ascii.NL)
         elif ch == curses.ascii.NL and writable:
             if quote.iseol(ypos, xpos) and not quote.iscomplete(ypos, xpos):
+                if keyboard:
+                    quote.stats.keystrokes_enter += 1
                 self.inputbox.putch(ch)
                 newy, newx = self.inputbox.pad.getyx()
                 if newy > 0 and newx == 0:

@@ -429,14 +429,40 @@ class TestInputStats(TestCase):
         stats.timer.stopped = 300
         self.assertEqual(stats.speed, 0.5)
 
+    def test_counters(self):
+        stats = speedpad.InputStats()
+        self.assertFalse(stats.typos)
+        self.assertEqual(stats.keystrokes_typo, 0)
+        self.assertEqual(stats.keystrokes_good, 0)
+        self.assertEqual(stats.keystrokes_tab, 0)
+        self.assertEqual(stats.keystrokes_space, 0)
+        self.assertEqual(stats.keystrokes_enter, 0)
+        stats.addtypo(0, 0, count=1)
+        self.assertIn((0, 0), stats.typos)
+        self.assertTrue(stats.typos[0, 0])
+        self.assertEqual(stats.keystrokes_good, 0)
+        self.assertEqual(stats.keystrokes_typo, 1)
+        stats.fixtypo(0, 0, count=1)
+        self.assertIn((0, 0), stats.typos)
+        self.assertFalse(stats.typos[0, 0])
+        self.assertEqual(stats.keystrokes_good, 1)
+        self.assertEqual(stats.keystrokes_typo, 1)
+        # auto increment is tested in TestSpeedPad.test_process
+
     def test_reset(self):
         stats = speedpad.InputStats()
         stats.addtypo(0, 0, count=1)
         stats.fixtypo(0, 0, count=1)
+        stats.keystrokes_tab = 1
+        stats.keystrokes_space = 2
+        stats.keystrokes_enter = 3
         stats.reset()
         self.assertFalse(stats.typos)
         self.assertEqual(stats.keystrokes_typo, 0)
         self.assertEqual(stats.keystrokes_good, 0)
+        self.assertEqual(stats.keystrokes_tab, 0)
+        self.assertEqual(stats.keystrokes_space, 0)
+        self.assertEqual(stats.keystrokes_enter, 0)
 
 
 class TestTimer(TestCase):
@@ -963,6 +989,9 @@ class TestSpeedPad(CursesTestCase):
         self.assertTrue(self.quote.stats.typos[0, 0])
         self.assertEqual(self.quote.stats.keystrokes_typo, 1)
         self.assertEqual(self.quote.stats.keystrokes_good, 0)
+        self.assertEqual(self.quote.stats.keystrokes_tab, 0)
+        self.assertEqual(self.quote.stats.keystrokes_space, 1)
+        self.assertEqual(self.quote.stats.keystrokes_enter, 0)
         process(curses.ascii.BS)
         self.assertEqual(self.instance.player.pos, 0)
         self.assertTrue(self.quote.stats.typos)
@@ -993,6 +1022,13 @@ class TestSpeedPad(CursesTestCase):
         self.assertEqual(list(self.instance.queue), [curses.ascii.EOT])
         self.assertRaises(EOFError, process, curses.ascii.EOT)
         self.assertTrue(self.quote.stats.timer.stopped)
+        # no increment after completion
+        process(curses.ascii.SP)
+        process(curses.ascii.TAB)
+        process(curses.ascii.NL)
+        self.assertEqual(self.quote.stats.keystrokes_tab, 0)
+        self.assertEqual(self.quote.stats.keystrokes_space, 0)
+        self.assertEqual(self.quote.stats.keystrokes_enter, 0)
         reset(["foo     bar",
                "baz"])
         for c in "foo": process(ord(c))
@@ -1000,12 +1036,16 @@ class TestSpeedPad(CursesTestCase):
         # tab expansion
         self.instance.tabsize = 2
         process(curses.ascii.TAB)
+        self.assertEqual(self.quote.stats.keystrokes_tab, 1)
+        self.assertEqual(self.quote.stats.keystrokes_space, 0)
+        self.assertEqual(self.quote.stats.keystrokes_enter, 0)
         self.assertEqual(self.instance.player.pos, 3)
         self.assertTrue(self.instance.queue)
         self.assertEqual(list(self.instance.queue), str2ord(" "))
         self.instance.queue.clear()
         self.instance.tabsize = 8
         process(curses.ascii.TAB)
+        self.assertEqual(self.quote.stats.keystrokes_tab, 2)
         self.assertEqual(self.instance.player.pos, 3)
         self.assertTrue(self.instance.queue)
         self.assertEqual(list(self.instance.queue), str2ord("     "))
@@ -1022,6 +1062,7 @@ class TestSpeedPad(CursesTestCase):
         # manual newline on eol if strict
         self.instance.strict = True
         process(curses.ascii.SP)
+        self.assertEqual(self.quote.stats.keystrokes_space, 0)
         self.assertEqual(self.instance.player.pos, 11)
         self.assertFalse(self.instance.queue)
         process(curses.ascii.TAB)
@@ -1034,6 +1075,7 @@ class TestSpeedPad(CursesTestCase):
         # auto newline on eol
         self.instance.strict = False
         process(curses.ascii.SP)
+        self.assertEqual(self.quote.stats.keystrokes_space, 0)
         self.assertEqual(self.instance.player.pos, 11)
         self.assertTrue(self.instance.queue)
         self.assertEqual(list(self.instance.queue), [curses.ascii.NL])
@@ -1045,18 +1087,24 @@ class TestSpeedPad(CursesTestCase):
         self.instance.queue.clear()
         # next line
         process(curses.ascii.NL)
+        self.assertEqual(self.quote.stats.keystrokes_enter, 1)
         self.assertEqual(self.instance.player.pos, 11)
+        process(curses.ascii.SP)
+        process(curses.ascii.SP)
+        self.assertEqual(self.quote.stats.keystrokes_space, 2)
+        process(curses.ascii.BS)
         # negative wrap around after backspace on first column
         process(curses.ascii.BS)
         self.assertEqual(self.instance.player.pos, 11)
         process(curses.ascii.NL)
+        self.assertEqual(self.quote.stats.keystrokes_enter, 2)
         self.assertEqual(self.instance.player.pos, 11)
         for c in "bax": process(ord(c))
         self.assertEqual(self.instance.player.pos, 14)
         self.assertTrue(self.quote.stats.typos)
         self.assertIn((1, 2), self.quote.stats.typos)
         self.assertTrue(self.quote.stats.typos[1, 2])
-        self.assertEqual(self.quote.stats.keystrokes_typo, 1)
+        self.assertEqual(self.quote.stats.keystrokes_typo, 3)
         self.assertEqual(self.quote.stats.keystrokes_good, 8)
         # no-ops after completion, only backspace
         process(ord('x'))
@@ -1072,7 +1120,7 @@ class TestSpeedPad(CursesTestCase):
         self.assertTrue(self.quote.stats.typos)
         self.assertIn((1, 2), self.quote.stats.typos)
         self.assertTrue(self.quote.stats.typos[1, 2])
-        self.assertEqual(self.quote.stats.keystrokes_typo, 1)
+        self.assertEqual(self.quote.stats.keystrokes_typo, 3)
         self.assertEqual(self.quote.stats.keystrokes_good, 8)
         # correct error
         process(ord('z'))
@@ -1080,7 +1128,7 @@ class TestSpeedPad(CursesTestCase):
         self.assertTrue(self.quote.stats.typos)
         self.assertIn((1, 2), self.quote.stats.typos)
         self.assertFalse(self.quote.stats.typos[1, 2])
-        self.assertEqual(self.quote.stats.keystrokes_typo, 1)
+        self.assertEqual(self.quote.stats.keystrokes_typo, 3)
         self.assertEqual(self.quote.stats.keystrokes_good, 9)
         self.assertTrue(self.quote.iscomplete(1, 3))
         self.assertTrue(self.quote.iscorrect())
