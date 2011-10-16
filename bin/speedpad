@@ -1154,6 +1154,13 @@ def main(*args, **kwargs):
 
     args = parser.parse_args(*args, **kwargs)
 
+    for encoding in (args.input_encoding,
+                     args.output_encoding,
+                     args.filesystem_encoding):
+        try:
+            codecs.lookup(encoding)
+        except LookupError as e:
+            parser.error(e)
     if args.cmd and not args.argv:
         parser.error("missing command line")
     if not args.argv:
