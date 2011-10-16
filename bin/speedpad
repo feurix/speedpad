@@ -471,7 +471,11 @@ class QuoteGenerator(object):
         raw = self.iterator.next()
         raw = self.decode(raw)
         res = self.clean(raw)
-        return Quote(res)
+        try:
+            quote = Quote(res)
+        except ValueError as e:
+            raise QuoteGeneratorError(e)
+        return quote
 
     def clean(self, raw):
         """Take raw string input and return list of clean lines"""
@@ -1077,6 +1081,11 @@ class SpeedPad(object):
             self.speedbox.update(self.player)
 
 
+class QuoteGeneratorError(Exception): pass
+class QuoteCommandLineError(Exception): pass
+class QuoteFileSourceError(Exception): pass
+
+
 def main(*args, **kwargs):
     import sys
     if sys.hexversion < 0x020700F0:
@@ -1188,15 +1197,21 @@ def main(*args, **kwargs):
         import subprocess
         def factory(maxsize):
             while True:
-                yield subprocess.check_output(args.argv)[:maxsize]
+                try:
+                    yield subprocess.check_output(args.argv)[:maxsize]
+                except Exception as e:
+                    raise QuoteCommandLineError(e)
     else:
         def factory(maxsize):
             for fn in args.argv:
-                if args.input_encoding != args.filesystem_encoding:
-                    fn = fn.decode(args.input_encoding)
-                    fn = fn.encode(args.filesystem_encoding)
-                with open(fn, 'rb') as fh:
-                    yield fh.read(maxsize)
+                try:
+                    if args.input_encoding != args.filesystem_encoding:
+                        fn = fn.decode(args.input_encoding)
+                        fn = fn.encode(args.filesystem_encoding)
+                    with open(fn, 'rb') as fh:
+                        yield fh.read(maxsize)
+                except Exception as e:
+                    raise QuoteFileSourceError(e)
 
     #import pprint
     #pprint.pprint(vars(parser))
@@ -1221,6 +1236,11 @@ def main(*args, **kwargs):
         curses.wrapper(instance)
     except KeyboardInterrupt:
         sys.exit(0)
+    except (QuoteGeneratorError,
+            QuoteFileSourceError,
+            QuoteCommandLineError) as e:
+        sys.stderr.write('quote source error: %s\n' % e)
+        sys.exit(2)
 
 if __name__ == '__main__':
     main()
