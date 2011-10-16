@@ -1023,7 +1023,7 @@ class SpeedPad(object):
         # CONTROLS
         elif ch == curses.ascii.FF:
             pass
-        elif ch == curses.ascii.EOT or ch == curses.ascii.SO:
+        elif ch == curses.ascii.EOT:
             if quote.stats.timer.started and not quote.stats.timer.stopped:
                 quote.stats.timer.stop()
                 self.active = False
