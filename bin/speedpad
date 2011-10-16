@@ -380,20 +380,26 @@ class InputBox(PadBox):
         if quote.stats.timer.elapsed < 1.0:
             self.pad.addstr(0, 0, "Speed: inconclusive")
         else:
-            cut = 10 ** (6 - 1 - 3) - 10 ** -3
-            self.pad.addstr(0, 0, "Speed: %6.3f CPS" % min(cut,
+            cut = 10 ** (7 - 1 - 3) - 10 ** -3
+            self.pad.addstr(0, 0, "Speed: %7.3f CPS" % min(cut,
                                                            cps(player.speed)))
-            cut = 10 ** (13 - 1 - 3) - 10 ** -3
-            self.pad.addstr(1, 0, "%13.3f CPM" % min(cut, cpm(player.speed)))
-            self.pad.addstr(2, 0, "%13.3f WPM" % min(cut, wpm(player.speed)))
-            self.pad.addstr(3, 0, "%13.3f PPM" % min(cut, ppm(player.speed)))
-            self.pad.addstr(4, 0, "%13.3f CPH" % min(cut, cph(player.speed)))
-        cut = 10 ** 6 - 1
-        self.pad.addstr(0, 19, "Keystrokes: %6d (good)" %
+            cut = 10 ** (14 - 1 - 3) - 10 ** -3
+            self.pad.addstr(1, 0, "%14.3f CPM" % min(cut, cpm(player.speed)))
+            self.pad.addstr(2, 0, "%14.3f WPM" % min(cut, wpm(player.speed)))
+            self.pad.addstr(3, 0, "%14.3f PPM" % min(cut, ppm(player.speed)))
+            self.pad.addstr(4, 0, "%14.3f CPH" % min(cut, cph(player.speed)))
+        cut = 10 ** 4 - 1
+        self.pad.addstr(0, 20, "Keystrokes: %4d (enter)" %
+                        min(cut, quote.stats.keystrokes_enter))
+        cut = 10 ** 16 - 1
+        self.pad.addstr(1, 20, "%16d (tab/space)" %
+                        min(cut, quote.stats.keystrokes_tab +
+                                 quote.stats.keystrokes_space))
+        self.pad.addstr(2, 20, "%16d (good)" %
                         min(cut, quote.stats.keystrokes_good))
-        self.pad.addstr(1, 31, "%6d (typo)" %
+        self.pad.addstr(3, 20, "%16d (typo)" %
                         min(cut, quote.stats.keystrokes_typo))
-        self.pad.addstr(2, 31, "%6d (total)" %
+        self.pad.addstr(4, 20, "%16d (total)" %
                         min(cut, quote.stats.keystrokes_good +
                                  quote.stats.keystrokes_typo))
 
