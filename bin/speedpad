@@ -45,7 +45,7 @@ class Box(object):
     BOX_XMIN = 1
 
     def __init__(self, uly, ulx, lry, lrx,
-                 color=curses.A_NORMAL, encoder=None):
+                 color=curses.A_NORMAL, encoder=None, decoder=None):
         """Instantiate box window
 
         The parameters uly and ulx specify the coordinates of the upper left
@@ -60,6 +60,7 @@ class Box(object):
         self.boxcols = lrx - ulx
         self.color = color
         self.encoder = encoder
+        self.decoder = decoder
 
         if self.boxlines < Box.BOX_YMIN or self.boxcols < Box.BOX_XMIN:
             raise ValueError("invalid box size")
@@ -70,6 +71,11 @@ class Box(object):
     def encode(self, s):
         if self.encoder is not None:
             return self.encoder.encode(s)
+        return s
+
+    def decode(self, s):
+        if self.decoder is not None:
+            return self.decoder.decode(s)
         return s
 
     def reset(self):
@@ -104,9 +110,10 @@ class PadBox(Box):
     PAD_YMIN = 2
     PAD_XMIN = 2
 
-    def __init__(self, uly, ulx, lry, lrx, padlines, padcols, soy, sox,
+    def __init__(self, uly, ulx, lry, lrx,
+                 padlines=PAD_YMIN, padcols=PAD_XMIN, soy=0, sox=0,
                  boxcolor=curses.A_NORMAL, padcolor=curses.A_NORMAL,
-                 encoder=None):
+                 encoder=None, decoder=None):
         """Instantiate pad box
 
         The parameters uly and ulx specify the coordinates of the upper left
@@ -120,7 +127,8 @@ class PadBox(Box):
         keep below and behind the cursor while scrolling, respectively.
         """
         super(PadBox, self).__init__(uly, ulx, lry, lrx,
-                                     color=boxcolor, encoder=encoder)
+                                     encoder=encoder, decoder=decoder,
+                                     color=boxcolor)
         self.padlines = padlines
         self.padcols = padcols
         self.ypos = 0
@@ -254,15 +262,9 @@ class QuoteBox(PadBox):
 class InputBox(PadBox):
 
     def __init__(self, *args, **kwargs):
-        self.decoder = kwargs.pop('decoder', None)
         super(InputBox, self).__init__(*args, **kwargs)
         self.pad.keypad(1)
         self.pad.timeout(0)
-
-    def decode(self, s):
-        if self.decoder is not None:
-            return self.decoder.decode(s)
-        return s
 
     def decode_chars(self, chars):
         """Decode multi-byte character to unicode string"""
