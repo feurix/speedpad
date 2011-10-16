@@ -1217,7 +1217,10 @@ def main(*args, **kwargs):
                 speedunit=speedunit,
                 input_encoding=args.input_encoding,
                 output_encoding=args.output_encoding)
-    curses.wrapper(instance)
+    try:
+        curses.wrapper(instance)
+    except KeyboardInterrupt:
+        sys.exit(0)
 
 if __name__ == '__main__':
     main()
