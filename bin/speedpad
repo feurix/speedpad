@@ -273,7 +273,7 @@ class QuoteBox(PadBox):
         for ypos, line in enumerate(quote):
             self.pad.addstr(ypos, 0, self.encode(line))
 
-    def stats(self, quote):
+    def draw_stats(self, quote):
         for ypos, line in enumerate(quote):
             self.pad.addstr(ypos, 0, self.encode(line))
         for ypos, xpos in quote.stats.typos:
@@ -376,6 +376,26 @@ class InputBox(PadBox):
             continuation.extend(spacegen)
         return continuation
 
+    def draw_stats(self, quote, player):
+        if quote.stats.timer.elapsed < 1.0:
+            self.pad.addstr(0, 0, "Speed: inconclusive")
+        else:
+            cut = 10 ** (6 - 1 - 3) - 10 ** -3
+            self.pad.addstr(0, 0, "Speed: %6.3f CPS" % min(cut,
+                                                           cps(player.speed)))
+            cut = 10 ** (13 - 1 - 3) - 10 ** -3
+            self.pad.addstr(1, 0, "%13.3f CPM" % min(cut, cpm(player.speed)))
+            self.pad.addstr(2, 0, "%13.3f WPM" % min(cut, wpm(player.speed)))
+            self.pad.addstr(3, 0, "%13.3f PPM" % min(cut, ppm(player.speed)))
+            self.pad.addstr(4, 0, "%13.3f CPH" % min(cut, cph(player.speed)))
+        cut = 10 ** 6 - 1
+        self.pad.addstr(0, 19, "Keystrokes: %6d (good)" %
+                        min(cut, quote.stats.keystrokes_good))
+        self.pad.addstr(1, 31, "%6d (typo)" %
+                        min(cut, quote.stats.keystrokes_typo))
+        self.pad.addstr(2, 31, "%6d (total)" %
+                        min(cut, quote.stats.keystrokes_good +
+                                 quote.stats.keystrokes_typo))
 
 class InputStats(object):
 
@@ -857,17 +877,15 @@ class SpeedPad(object):
         self.screen.addstr(ypos, self.xmax - 5, "QUIT", attr | curses.A_BOLD)
 
     def start_pager(self, quote):
-        self.inputbox.reset()
-        #self.inputbox.erase()
-        self.inputbox.noutrefresh()
         self.quotebox.reset()
-        #self.quotebox.resize(5, 0)
-        self.quotebox.stats(quote)
+        self.inputbox.reset()
+        self.quotebox.draw_stats(quote)
+        self.inputbox.draw_stats(quote, self.player)
         self.quotebox.noutrefresh()
+        self.inputbox.noutrefresh()
         curses.doupdate()
 
     def stop_pager(self):
-        #self.quotebox.resize(-5, 0)
         self.quotebox.reset()
         self.inputbox.reset()
         self.quotebox.noutrefresh()
