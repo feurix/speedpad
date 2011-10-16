@@ -1,0 +1,1139 @@
+#!/usr/bin/python
+#
+# Copyright (C) 2011 John Feuerstein <john@feurix.com>
+#
+#   Project URL: http://feurix.org/projects/speedpad/
+#    Mirror URL: http://code.google.com/p/speedpad/
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU Library General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write to the Free Software
+# Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+#
+__author__ = 'John Feuerstein <john@feurix.com>'
+__copyright__ = 'Copyright (C) 2011 %s' % __author__
+__license__ = 'GNU GPLv3'
+__version__ = '0.8'
+
+import collections
+import curses
+import curses.ascii
+import datetime
+import fcntl
+import itertools
+import operator
+import signal
+import struct
+import textwrap
+import time
+import tty
+
+
+class Box(object):
+
+    BOX_YMIN = 1
+    BOX_XMIN = 1
+
+    def __init__(self, uly, ulx, lry, lrx, color=curses.A_NORMAL):
+        """Instantiate box window
+
+        The parameters uly and ulx specify the coordinates of the upper left
+        box corner. The parameters lry and lrx specify the coordinates of
+        the lower right box corner.
+        """
+        self.uly = uly
+        self.ulx = ulx
+        self.lry = lry
+        self.lrx = lrx
+        self.boxlines = lry - uly
+        self.boxcols = lrx - ulx
+        self.color = color
+
+        if self.boxlines < Box.BOX_YMIN or self.boxcols < Box.BOX_XMIN:
+            raise ValueError("invalid box size")
+
+        self.box = curses.newwin(self.boxlines, self.boxcols, uly, ulx)
+        self.box.attron(self.color)
+
+    def reset(self):
+        self.box.erase()
+        self.box.attron(self.color)
+        self.box.move(0, 0)
+
+    def erase(self):
+        self.box.erase()
+        self.box.attron(self.color)
+
+    def noutrefresh(self):
+        self.box.noutrefresh()
+
+    def resize(self, ydiff, xdiff):
+        self.lry = max(self.uly + Box.BOX_YMIN, self.lry + ydiff)
+        self.lrx = max(self.ulx + Box.BOX_XMIN, self.lrx + xdiff)
+        self.boxlines = self.lry - self.uly
+        self.boxcols = self.lrx - self.ulx
+        self.box.resize(self.boxlines, self.boxcols)
+
+    def move(self, ydiff, xdiff):
+        self.uly += ydiff
+        self.ulx += xdiff
+        self.lry += ydiff
+        self.lrx += xdiff
+        self.box.mvwin(self.uly, self.ulx)
+
+
+class PadBox(Box):
+
+    PAD_YMIN = 2
+    PAD_XMIN = 2
+
+    def __init__(self, uly, ulx, lry, lrx, padlines, padcols, soy, sox,
+                 boxcolor=curses.A_NORMAL, padcolor=curses.A_NORMAL):
+        """Instantiate pad box
+
+        The parameters uly and ulx specify the coordinates of the upper left
+        box corner. The parameters lry and lrx specify the coordinates of
+        the lower right box corner.
+
+        The parameters padlines and padcols specify the pad size, its visible
+        area is limited by the size of the box window.
+
+        The parameters soy and sox specify the amount of lines and columns to
+        keep below and behind the cursor while scrolling, respectively.
+        """
+        super(PadBox, self).__init__(uly, ulx, lry, lrx, color=boxcolor)
+        self.padlines = padlines
+        self.padcols = padcols
+        self.ypos = 0
+        self.xpos = 0
+        self.soy = soy
+        self.sox = sox
+        self.ymax = max(0, self.boxlines - soy)
+        self.xmax = max(0, self.boxcols - sox)
+        self.color = padcolor
+
+        if self.padlines < PadBox.PAD_YMIN or self.padcols < PadBox.PAD_XMIN:
+            raise ValueError("invalid pad size")
+
+        self.pad = curses.newpad(self.padlines, self.padcols)
+        self.pad.attron(self.color)
+
+    def reset(self):
+        self.pad.erase()
+        self.pad.attron(self.color)
+        self.ypos = 0
+        self.xpos = 0
+        self.pad.move(0, 0)
+
+    def noutrefresh(self):
+        super(PadBox, self).noutrefresh()
+        self.pad.noutrefresh(self.ypos, self.xpos,
+                             self.uly, self.ulx,
+                             self.lry - 1, self.lrx - 1)
+
+    def resize(self, ydiff, xdiff):
+        super(PadBox, self).resize(ydiff, xdiff)
+        self.ymax = max(0, self.boxlines - self.soy)
+        self.xmax = max(0, self.boxcols - self.sox)
+
+    def scroll(self, ydiff, xdiff):
+        self.ypos = min(self.padlines, max(0, self.ypos + ydiff))
+        self.xpos = min(self.padcols, max(0, self.xpos + xdiff))
+
+    def extract(self, ypos, xpos, n=1):
+        oldy, oldx = self.pad.getyx()
+        res = self.pad.instr(ypos, xpos, n)
+        self.pad.move(oldy, oldx)
+        return res
+
+    def sol(self, ypos, skip=0):
+        oldy, oldx = self.pad.getyx()
+        startpos = 0
+        for xpos in xrange(skip, self.padcols):
+            if self.pad.inch(ypos, xpos) != curses.ascii.SP:
+                startpos = xpos
+                break
+        self.pad.move(oldy, oldx)
+        return startpos
+
+    def eol(self, ypos):
+        oldy, oldx = self.pad.getyx()
+        endpos = 0
+        for xpos in xrange(self.padcols - 1, -1, -1):
+            if self.pad.inch(ypos, xpos) != curses.ascii.SP:
+                endpos = xpos + 1
+                break
+        self.pad.move(oldy, oldx)
+        return endpos
+
+
+class SpeedBox(Box):
+
+    BOX_XMIN = 60
+
+    def __init__(self, *args, **kwargs):
+        super(SpeedBox, self).__init__(*args, **kwargs)
+        if self.boxcols < SpeedBox.BOX_XMIN:
+            raise ValueError("invalid box size")
+        self.players = []
+
+    def load(self, quote):
+        for player in self.players:
+            player.progressbar.end = quote.strlen
+
+    def update(self, player):
+        player.progressbar.cur = player.pos
+
+    def register(self, player):
+        player.progressbar = ProgressBar(SpeedBox.BOX_XMIN - 17)
+        self.players.append(player)
+
+    def resize(self, ydiff, xdiff):
+        for player in self.players:
+            player.progressbar.resize(ydiff, xdiff)
+        super(SpeedBox, self).resize(ydiff, xdiff)
+
+    def reset(self):
+        for player in self.players:
+            player.progressbar.reset()
+            player.reset()
+
+    def draw(self, unit='CPS', factor=1.0):
+        ymax = self.boxlines - 1
+        players = self.players
+        players.sort(key=operator.attrgetter('pos'), reverse=True)
+        players.sort(key=operator.attrgetter('speed'), reverse=True)
+        for ypos, player in enumerate(players):
+            if ypos > ymax: break
+            if len(players) > 1:
+                self.box.addstr(ypos, 0, "#%d" % min(9, (ypos + 1)),
+                                curses.A_BOLD)
+            self.box.addstr(ypos, 4, "%8s" % player.name[:8])
+            self.box.addstr(ypos, 13, "%4d %s" % (
+                    min(9999, player.speed * factor), unit[:3]))
+            player.progressbar.draw(self.box, ypos, 22, color=player.color)
+            self.box.insstr(ypos, self.boxcols - 4,
+                            "%3d%%" % (player.progressbar.pos * 100))
+
+
+class QuoteBox(PadBox):
+
+    def load(self, quote):
+        for ypos, line in enumerate(quote):
+            self.pad.addstr(ypos, 0, line)
+
+    def stats(self, quote):
+        for ypos, line in enumerate(quote):
+            self.pad.addstr(ypos, 0, line)
+        for ypos, xpos in quote.stats.typos:
+            self.pad.chgat(ypos, xpos, 1, curses.A_REVERSE)
+
+    def banner(self):
+        self.pad.addstr(0, 0, "waiting...")
+
+
+class InputBox(PadBox):
+
+    def __init__(self, *args, **kwargs):
+        super(InputBox, self).__init__(*args, **kwargs)
+        self.pad.keypad(1)
+        self.pad.timeout(0)
+
+    def putch(self, ch):
+        """Add a character and adjust cursor position"""
+        ypos, xpos = self.pad.getyx()
+        if curses.ascii.isprint(ch):
+            if ypos == self.padlines - 1 and xpos == self.padcols - 1:
+                return
+            self.pad.addch(ch)
+        elif ch == curses.ascii.NL:
+            if ypos < self.padlines - 1:
+                self.pad.move(ypos + 1, 0)
+        elif ch in (curses.ascii.BS, curses.ascii.DEL, curses.KEY_BACKSPACE):
+            if xpos > 0:
+                self.pad.move(ypos, min(xpos - 1, self.eol(ypos)))
+                self.pad.delch()
+            elif ypos > 0:
+                self.pad.move(ypos - 1, self.eol(ypos - 1))
+
+    def continue_comment(self, oldypos, oldsol, oldeol, neweol, indent=False):
+        """Calculate and return comment continuation
+
+        The parameters oldypos, oldsol, and oldeol specify coordinates of the
+        current line (the line we want to continue).
+
+        The parameter neweol gives us a hint about the maximum length of the
+        new line.
+        """
+        lead = self.extract(oldypos, oldsol, 2)
+        trail = self.extract(oldypos, max(0, oldeol - 2), 2)
+        if lead == '*/':
+            return [curses.ascii.BS] if oldsol > 0 else []
+        if lead == '/*':
+            if trail == '*/':
+                return []
+            continuation = [ord(' '), ord('*')]
+        elif lead == '//':
+            continuation = [ord('/'), ord('/')]
+        else:
+            lead = lead[:1]
+            if lead == '*':
+                continuation = [ord('*')]
+            elif lead == '#':
+                continuation = [ord('#')]
+            else:
+                return []
+        if len(continuation) > neweol:
+            return []
+        if len(continuation) == neweol:
+            return continuation
+        if not indent:
+            return continuation
+        eoc = oldsol + len(lead)
+        indent = self.sol(oldypos, skip=eoc)
+        if not indent:
+            return continuation
+        spaces = indent - eoc
+        if not spaces:
+            return continuation
+        if len(continuation) + spaces < neweol:
+            spacegen = itertools.repeat(curses.ascii.SP, spaces)
+            continuation.extend(spacegen)
+        return continuation
+
+
+class InputStats(object):
+
+    def __init__(self):
+        self.typos = {}
+        self.keystrokes_typo = 0
+        self.keystrokes_good = 0
+        self.timer = Timer()
+
+    def reset(self):
+        self.typos = {}
+        self.keystrokes_typo = 0
+        self.keystrokes_good = 0
+        self.timer.reset()
+
+    def addtypo(self, ypos, xpos, count=1):
+        self.typos[ypos, xpos] = True
+        self.keystrokes_typo += count
+
+    def fixtypo(self, ypos, xpos, count=1):
+        if (ypos, xpos) in self.typos:
+            self.typos[ypos, xpos] = False
+        self.keystrokes_good += count
+
+    @property
+    def speed(self):
+        elapsed = float(self.timer.elapsed)
+        if elapsed < 1.0: return 0.0
+        return self.keystrokes_good / elapsed
+
+
+class Quote(object):
+
+    def __init__(self, lines):
+        self.lines = list(lines)
+        if not self.lines:
+            raise ValueError("missing input")
+        self.ymax = len(self.lines)
+        self.xmax = len(max(self.lines, key=len))
+        self.strlen = sum(len(line) for line in self.lines)
+        self.stats = InputStats()
+
+    def __iter__(self):
+        return iter(self.lines)
+
+    def inrange(self, ypos, xpos):
+        return (0 <= ypos < len(self.lines) and
+                0 <= xpos < len(self.lines[ypos]))
+
+    def strpos(self, ypos, xpos):
+        if ypos < 0 or xpos < 0:
+            raise IndexError
+        if ypos < len(self.lines):
+            prev = itertools.islice(self.lines, ypos)
+            return sum((len(line) for line in prev),
+                       min(len(self.lines[ypos]), xpos))
+        return self.strlen
+
+    def istypo(self, ypos, xpos, ch, record=False, **kwargs):
+        if not self.inrange(ypos, xpos):
+            return True
+        if ch == ord(self.lines[ypos][xpos]):
+            if record:
+                self.stats.fixtypo(ypos, xpos, **kwargs)
+            return False
+        if record:
+            self.stats.addtypo(ypos, xpos, **kwargs)
+        return True
+
+    def eol(self, ypos):
+        if not 0 <= ypos < len(self.lines):
+            return 0
+        return len(self.lines[ypos])
+
+    def iseol(self, ypos, xpos):
+        return ypos < len(self.lines) and xpos >= len(self.lines[ypos])
+
+    def iscomplete(self, ypos, xpos):
+        if ypos == len(self.lines) - 1:
+            return xpos >= len(self.lines[ypos])
+        return ypos >= len(self.lines)
+
+    def iscorrect(self):
+        return not any(self.stats.typos.itervalues())
+
+
+class QuoteGenerator(object):
+
+    def __init__(self, factory, maxlines, maxcols,
+                 wrap=0, width=0, tabsize=8, strip=True):
+        if maxlines < 1 or maxcols < 1:
+            raise ValueError("invalid size")
+        if wrap < 0:
+            width = maxcols
+        elif wrap == 0:
+            width = min(maxcols, width) or maxcols
+        else:
+            width = min(maxcols, wrap) or maxcols
+        self.adaptive = wrap == 0
+        self.tabsize = tabsize
+        self.strip = strip
+        self.maxlines = maxlines
+        self.maxcols = maxcols
+        self.iterator = factory(maxlines * maxcols)
+        self.wrapper = textwrap.TextWrapper(width=width)
+
+    def __iter__(self):
+        return self
+
+    def next(self):
+        raw = self.iterator.next()
+        res = self.clean(raw)
+        return Quote(res)
+
+    def clean(self, raw):
+        """Take raw string input and return list of clean lines"""
+        end = self.maxlines
+        raw = raw.strip() if self.strip else raw.rstrip()
+        raw = raw.expandtabs(self.tabsize)
+        raw = raw.splitlines()
+        res = []
+        for line in itertools.islice(raw, end):
+            if self.strip:
+                words = line.split()
+                line = ' '.join(words)
+            else:
+                line = line.rstrip()
+            if line:
+                lines = self.wrapper.wrap(line)
+                lines = itertools.islice(lines, max(0, end - len(res)))
+                res.extend(lines)
+            else:
+                res.append(line)
+            if len(res) == end:
+                break
+        return res
+
+    def resize(self, ydiff, xdiff):
+        if self.adaptive:
+            width = max(1, self.wrapper.width + xdiff)
+            self.wrapper.width = min(self.maxcols, width)
+
+
+class Timer(object):
+
+    def __init__(self):
+        self.started = 0
+        self.stopped = 0
+
+    def start(self):
+        if self.started:
+            raise RuntimeError
+        self.started = time.time()
+
+    def stop(self):
+        if not self.started or self.stopped:
+            raise RuntimeError
+        self.stopped = time.time()
+
+    def reset(self):
+        self.started = 0
+        self.stopped = 0
+
+    @property
+    def elapsed(self):
+        if not self.started:
+            return 0
+        if not self.stopped:
+            return time.time() - self.started
+        return self.stopped - self.started
+
+
+class ProgressBar(object):
+
+    def __init__(self, width):
+        self.width = width
+        self._end = 0
+        self._cur = 0
+        self._pos = 0.0
+
+    def draw(self, win, ypos, xpos, color=curses.A_NORMAL):
+        if not self.width: return
+        end = self.width
+        pos = int(self.width * self.pos)
+        win.hline(ypos, xpos, curses.ascii.SP, end, color)
+        win.hline(ypos, xpos, curses.ascii.SP, pos, color | curses.A_REVERSE)
+
+    def resize(self, ydiff, xdiff):
+        self.width = max(0, self.width + xdiff)
+
+    def reset(self):
+        self._end = 0
+        self._cur = 0
+        self._pos = 0.0
+
+    @property
+    def pos(self):
+        return self._pos
+
+    @property
+    def cur(self):
+        return self._cur
+
+    @cur.setter
+    def cur(self, val):
+        self._cur = max(0, val)
+        if self._end:
+            self._pos = min(1.0, float(self._cur) / float(self._end))
+        else:
+            self._pos = 0.0
+
+    @property
+    def end(self):
+        return self._end
+
+    @end.setter
+    def end(self, val):
+        self._end = max(0, val)
+        if self._end:
+            self.cur = self.cur
+        else:
+            self.cur = 0
+
+
+class Player(object):
+
+    def __init__(self, name, color=curses.A_NORMAL):
+        self.name = name
+        self.color = color
+        self.pos = 0
+        self.speed = 0
+
+    def __hash__(self):
+        return hash(self.name)
+
+    def reset(self):
+        self.pos = 0
+        self.speed = 0
+
+
+class Robot(Player):
+
+    def __init__(self, name, speed):
+        super(Robot, self).__init__(name)
+        self.speed = speed
+
+    def reset(self):
+        self.pos = 0
+
+
+class SpeedPad(object):
+    """Manage all components"""
+
+    SCR_XMIN = 70
+    SCR_YMIN = 20
+    PAD_XMAX = 200
+    PAD_YMAX = 1000
+
+    def __init__(self, factory=lambda maxsize: [],
+                 strict=False, strip=True, color=True, indent=False,
+                 syntax=False, user=None, robot=None, player=None,
+                 wrap=0, tabsize=8,
+                 speed=0.0, speedfactor=1.0, speedunit='CPS'):
+        self.factory = factory
+        self.indent = indent
+        self.strict = strict
+        self.strip = strip
+        self.syntax = syntax
+        self.wrap = wrap
+        self.user = user
+        self.quotegen = None
+        self.speedfactor = speedfactor
+        self.speedunit = speedunit
+        self.speed = max(0.0, float(speed)) / float(speedfactor)
+        self.tabsize = min(20, max(0, tabsize))
+        self.xmax = SpeedPad.SCR_XMIN
+        self.ymax = SpeedPad.SCR_YMIN
+        self.color = color
+        self.color_menu = curses.A_REVERSE
+        self.active = False
+        self.dumbtty = True
+        self.queue = collections.deque()
+        self.player = player or Player(self.user or "user")
+        self.robot = robot or self.speed and Robot("robot", self.speed)
+
+    def __call__(self, screen):
+        """Start instance by calling it with an initialized screen"""
+        self.screen = screen
+        self.getsize()
+        self.initquotes()
+        self.initscreen()
+        self.initsignals()
+        self.initplayers()
+        self.initcolors()
+        self.sync(force=True)
+        self.loop()
+
+    def initscreen(self):
+        """Initialize screen, boxes, windows and pads"""
+        self.speedbox = SpeedBox(2, 0,
+                                 4 if self.robot else 3, self.xmax)
+        self.quotebox = QuoteBox(6 if self.robot else 5, 0,
+                                 SpeedPad.SCR_YMIN - 7, SpeedPad.SCR_XMIN,
+                                 SpeedPad.PAD_YMAX, SpeedPad.PAD_XMAX,
+                                 2, 10)
+        self.inputbox = InputBox(SpeedPad.SCR_YMIN - 6, 0,
+                                 SpeedPad.SCR_YMIN - 1, SpeedPad.SCR_XMIN,
+                                 SpeedPad.PAD_YMAX, SpeedPad.PAD_XMAX,
+                                 0, 10)
+
+    def initsignals(self):
+        """Initialize and register signal handlers"""
+        if hasattr(curses, 'resize_term') and hasattr(signal, 'SIGWINCH'):
+            signal.signal(signal.SIGWINCH, self._sigwinchhandler)
+            self.dumbtty = False
+
+    def initquotes(self):
+        """Initialize the quote data source"""
+        self.quotegen = QuoteGenerator(self.factory,
+                                       maxlines=SpeedPad.PAD_YMAX - 1,
+                                       maxcols=SpeedPad.PAD_XMAX - 1,
+                                       width=SpeedPad.SCR_XMIN - 1,
+                                       wrap=self.wrap,
+                                       tabsize=self.tabsize,
+                                       strip=self.strip)
+
+    def initplayers(self):
+        """Initialize and register players"""
+        if self.robot:
+            self.speedbox.register(self.robot)
+        if self.player:
+            self.speedbox.register(self.player)
+
+    def initcolors(self):
+        """Initialize and assign colors"""
+        if not curses.has_colors():
+            self.color = False
+            return
+        curses.use_default_colors()
+        if not self.color:
+            return
+        curses.init_pair(1, curses.COLOR_WHITE, curses.COLOR_BLUE)
+        curses.init_pair(2, curses.COLOR_YELLOW, -1)
+        self.color_menu = curses.color_pair(1)
+        self.player.color = curses.color_pair(2)
+        if self.robot:
+            curses.init_pair(3, curses.COLOR_CYAN, -1)
+            self.robot.color = curses.color_pair(3)
+
+    def getsize(self):
+        ymax, xmax = self.screen.getmaxyx()
+        if ymax < SpeedPad.SCR_YMIN or xmax < SpeedPad.SCR_XMIN:
+            raise RuntimeError("screen too small, need %dx%d" % (
+                    SpeedPad.SCR_XMIN, SpeedPad.SCR_YMIN))
+        return ymax, xmax
+
+    def _sigwinchhandler(self, signum, frame):
+        size = fcntl.ioctl(0, tty.TIOCGWINSZ, '12345678')
+        size = struct.unpack('4H', size)
+        curses.resize_term(size[0], size[1])
+        self.sync()
+
+    def sync(self, force=False):
+        """Sync size with physical screen and resize accordingly"""
+        oldymax = self.ymax
+        oldxmax = self.xmax
+        self.ymax, self.xmax = self.getsize()
+        ydiff = self.ymax - oldymax
+        xdiff = self.xmax - oldxmax
+        if force or ydiff or xdiff:
+            self.resize(ydiff, xdiff)
+
+    def resize(self, ydiff, xdiff):
+        """Resize and redraw screen components"""
+        self.screen.clear()
+        self.screen.noutrefresh()
+        self.speedbox.resize(0, xdiff)
+        self.quotegen.resize(ydiff, xdiff)
+        self.quotebox.resize(ydiff, xdiff)
+        self.inputbox.resize(0, xdiff)
+        self.inputbox.move(ydiff, 0)
+        ypos, xpos = self.inputbox.pad.getyx()
+        if ydiff < 0:
+            self.quotebox.ypos = max(0, ypos - self.quotebox.ymax)
+        if xdiff < 0:
+            self.quotebox.xpos = max(0, xpos - self.quotebox.xmax)
+            self.inputbox.xpos = max(0, xpos - self.inputbox.xmax)
+        self.draw_header()
+        self.draw_quote_sep()
+        self.draw_input_sep()
+        self.draw_footer()
+        self.speedbox.erase()
+        self.quotebox.erase()
+        self.inputbox.erase()
+        self.update_screen()
+
+    def update_screen(self, quote=None):
+        """Commit pending changes to physical screen"""
+        if self.dumbtty:
+            self.sync()
+        if quote:
+            seconds = int(quote.stats.timer.elapsed)
+            elapsed = str(datetime.timedelta(seconds=seconds))
+            self.draw_header(status=elapsed)
+        self.draw_footer()
+        self.speedbox.draw(unit=self.speedunit, factor=self.speedfactor)
+        self.screen.noutrefresh()
+        self.speedbox.noutrefresh()
+        self.quotebox.noutrefresh()
+        self.inputbox.noutrefresh()
+        curses.doupdate()
+
+    def update_player_speed(self, quote):
+        self.player.speed = quote.stats.speed
+
+    def update_robot_pos(self, quote):
+        if not self.robot or self.robot.pos == quote.strlen: return
+        pos = int(quote.stats.timer.elapsed * self.robot.speed)
+        pos = min(quote.strlen, pos)
+        self.robot.pos = pos
+        self.speedbox.update(self.robot)
+
+    def draw_header(self, status=None):
+        attr = self.color_menu
+        ypos = 0
+        self.screen.hline(ypos, 0, curses.ascii.SP, self.xmax, attr)
+        self.screen.addstr(ypos, 0, "speedpad version %s" % __version__, attr)
+        if status:
+            status = status[:self.xmax - 30]
+            self.screen.addstr(ypos, self.xmax - len(status), status, attr)
+
+    def draw_quote_sep(self, status=None):
+        attr = self.color_menu
+        ypos = 5 if self.robot else 4
+        self.screen.hline(ypos, 0, curses.ascii.SP, self.xmax, attr)
+        if status:
+            status = status[:self.xmax - 30]
+            self.screen.addstr(ypos, self.xmax - len(status), status, attr)
+
+    def draw_input_sep(self, status=None):
+        attr = self.color_menu
+        ypos = self.ymax - 7
+        self.screen.hline(ypos, 0, curses.ascii.SP, self.xmax, attr)
+        if status:
+            status = status[:self.xmax - 30]
+            self.screen.addstr(ypos, self.xmax - len(status), status, attr)
+
+    def draw_footer(self):
+        attr = self.color_menu
+        ypos = self.ymax - 1
+        self.screen.hline(ypos, 0, curses.ascii.SP, self.xmax, attr)
+        self.screen.addstr(ypos, 1, "CTRL-X", attr)
+        self.screen.addstr(ypos, 1 + 7, "RESET", attr | curses.A_BOLD)
+        self.screen.addstr(ypos, 20, "CTRL-D", attr)
+        self.screen.addstr(ypos, 20 + 7, "STOP" if self.active else "NEXT",
+                           attr | curses.A_BOLD)
+        self.screen.addstr(ypos, self.xmax - 12, "CTRL-C", attr)
+        self.screen.addstr(ypos, self.xmax - 5, "QUIT", attr | curses.A_BOLD)
+
+    def start_pager(self, quote):
+        self.inputbox.reset()
+        #self.inputbox.erase()
+        self.inputbox.noutrefresh()
+        self.quotebox.reset()
+        #self.quotebox.resize(5, 0)
+        self.quotebox.stats(quote)
+        self.quotebox.noutrefresh()
+        curses.doupdate()
+
+    def stop_pager(self):
+        #self.quotebox.resize(-5, 0)
+        self.quotebox.reset()
+        self.inputbox.reset()
+        self.quotebox.noutrefresh()
+        self.inputbox.noutrefresh()
+        self.screen.noutrefresh()
+        curses.doupdate()
+
+    def loop(self):
+        """Process quotes and handle user input"""
+# XXX banner?
+#        self.quotebox.reset()
+#        self.quotebox.banner()
+#        self.quotebox.noutrefresh()
+#        curses.doupdate()
+
+        update_interval_screen = 0.1    # seconds
+        update_interval_speed = 0.5     # seconds
+        update_interval_progress = 0.1  # seconds
+        sleep = 0.01                    # seconds
+        scan = int(sleep * 1000)        # milliseconds
+        update_iterations_screen = int(update_interval_screen / sleep)
+        update_iterations_speed = int(update_interval_speed / sleep)
+        update_iterations_progress = int(update_interval_progress / sleep)
+        for quote in self.quotegen:     # next quote
+            while True:                 # next round
+                curses.flushinp()
+                self.queue.clear()
+                quote.stats.reset()
+                self.speedbox.reset()
+                self.quotebox.reset()
+                self.inputbox.reset()
+                self.speedbox.load(quote)
+                self.quotebox.load(quote)
+                self.update_screen(quote)
+                update_iteration_screen = 0
+                update_iteration_speed = 0
+                update_iteration_progress = 0
+                update_screen = False
+                update_speed = False
+                update_progress = False
+                writable = True
+                restart = False
+                while True:             # next keypress
+                    if update_iteration_screen == update_iterations_screen:
+                        update_iteration_screen = 0
+                        update_screen = True
+                    if update_iteration_speed == update_iterations_speed:
+                        update_iteration_speed = 0
+                        update_speed = True
+                    if update_iteration_progress == update_iterations_progress:
+                        update_iteration_progress = 0
+                        update_progress = True
+
+                    try:
+                        ch = self.queue.popleft()
+                        keyboard = False
+                    except IndexError:
+                        ch = self.inputbox.pad.getch()
+                        keyboard = True
+
+                    if ch < 0:
+                        if update_speed:
+                            update_speed = False
+                            self.update_player_speed(quote)
+                        if update_progress:
+                            update_progress = False
+                            self.update_robot_pos(quote)
+                        if update_screen:
+                            update_screen = False
+                            self.update_screen(quote)
+                        update_iteration_screen += 1
+                        update_iteration_speed += 1
+                        update_iteration_progress += 1
+                        curses.napms(scan)
+                        continue
+
+                    try:
+                        self.process(quote, ch, writable=writable,
+                                     keyboard=keyboard)
+                    except EOFError:
+                        self.queue.clear()
+                        if writable:
+                            self.start_pager(quote)
+                            writable = False
+                        else:
+                            self.stop_pager()
+                            break
+                    except StopIteration:
+                        self.queue.clear()
+                        if not writable:
+                            self.stop_pager()
+                        restart = True
+                        break
+
+                    if update_speed:
+                        update_speed = False
+                        self.update_player_speed(quote)
+                    if update_progress:
+                        update_progress = False
+                        self.update_robot_pos(quote)
+                    self.update_screen(quote)
+                    update_screen = False
+                    update_iteration_screen = 0
+                    update_iteration_speed += 1
+                    update_iteration_progress += 1
+                    # next keypress
+
+                if not restart: break
+                # next round
+
+            # next quote
+
+# XXX banner?
+#            self.quotebox.reset()
+#            self.quotebox.banner()
+#            self.quotebox.noutrefresh()
+#            curses.doupdate()
+
+    def process(self, quote, ch, writable=True, keyboard=True):
+        """Process a single character"""
+        ypos, xpos = self.inputbox.pad.getyx()
+        # INPUT
+        if writable and curses.ascii.isprint(ch):
+            if quote.iscomplete(ypos, xpos):
+                pass # complete with pending typos
+            elif quote.iseol(ypos, xpos):
+                if not self.strict and ch == curses.ascii.SP:
+                    self.queue.append(curses.ascii.NL)
+            else:
+                if not quote.stats.timer.started:
+                    self.active = True
+                    quote.stats.timer.start()
+                if quote.istypo(ypos, xpos, ch, record=True,
+                                count=1 if keyboard else 0):
+                    self.quotebox.pad.chgat(ypos, xpos, 1, curses.A_REVERSE)
+                else:
+                    self.quotebox.pad.chgat(ypos, xpos, 1, curses.A_BOLD)
+                if (quote.iscomplete(ypos, xpos + 1) and
+                    quote.iscorrect()):
+                    self.queue.append(curses.ascii.EOT)
+                self.inputbox.putch(ch)
+        elif (writable and ch in (curses.ascii.BS, curses.ascii.DEL,
+                                  curses.KEY_BACKSPACE)):
+            quote.stats.fixtypo(ypos, xpos, count=0)
+            self.inputbox.putch(ch)
+            newy, newx = self.inputbox.pad.getyx()
+            if newy != ypos:
+                self.quotebox.pad.chgat(newy, newx, -1, curses.A_NORMAL)
+            elif newx != xpos:
+                self.quotebox.pad.chgat(ypos, newx, -1, curses.A_NORMAL)
+        elif ch == curses.ascii.TAB and writable:
+            if self.tabsize:
+                indent = self.tabsize - xpos % self.tabsize
+                remaining = max(0, quote.eol(ypos) - xpos)
+                if remaining > 0:
+                    spaces = min(indent, remaining)
+                    spacegen = itertools.repeat(curses.ascii.SP, spaces)
+                    self.queue.extend(spacegen)
+                if not self.strict and indent > remaining:
+                    self.queue.append(curses.ascii.NL)
+        elif ch == curses.ascii.NL and writable:
+            if quote.iseol(ypos, xpos) and not quote.iscomplete(ypos, xpos):
+                self.inputbox.putch(ch)
+                newy, newx = self.inputbox.pad.getyx()
+                if newy > 0 and newx == 0:
+                    oldsol = self.inputbox.sol(ypos)
+                    oldeol = quote.eol(ypos)
+                    neweol = quote.eol(newy)
+                    if self.indent and oldsol > 0:
+                        spacegen = itertools.repeat(curses.ascii.SP, oldsol)
+                        self.queue.extend(spacegen)
+                    if self.syntax and oldeol > oldsol:
+                        continuation = self.inputbox.continue_comment(
+                                ypos, oldsol, oldeol, neweol,
+                                indent=self.indent)
+                        self.queue.extend(continuation)
+        # CONTROLS
+        elif ch == curses.ascii.FF:
+            pass
+        elif ch == curses.ascii.EOT or ch == curses.ascii.SO:
+            if quote.stats.timer.started and not quote.stats.timer.stopped:
+                quote.stats.timer.stop()
+                self.active = False
+            raise EOFError
+        elif ch == curses.ascii.CAN:
+            raise StopIteration
+        # SCROLLING
+        elif ch == curses.KEY_HOME or ch == curses.ascii.SOH:
+            self.quotebox.ypos = 0
+        elif ch == curses.KEY_END or ch == curses.ascii.ENQ:
+            self.quotebox.ypos = max(0, quote.ymax - self.quotebox.ymax)
+        elif ch == curses.KEY_PPAGE:
+            self.quotebox.scroll(-(self.quotebox.ymax // 2), 0)
+        elif ch == curses.KEY_NPAGE:
+            self.quotebox.scroll(self.quotebox.ymax // 2, 0)
+        elif ch == curses.KEY_UP:
+            self.quotebox.scroll(-1, 0)
+        elif ch == curses.KEY_DOWN:
+            self.quotebox.scroll(1, 0)
+        elif ch == curses.KEY_LEFT:
+            self.quotebox.scroll(0, -1)
+        elif ch == curses.KEY_RIGHT:
+            self.quotebox.scroll(0, 1)
+
+        if not writable: return
+
+        # AUTO SCROLLING
+        newy, newx = self.inputbox.pad.getyx()
+        ydiff = newy - ypos
+        xdiff = newx - xpos
+        if ydiff:
+            if self.quotebox.ypos or newy >= self.quotebox.ymax:
+                self.quotebox.scroll(ydiff, 0)
+            if self.inputbox.ypos or newy >= self.inputbox.ymax:
+                self.inputbox.scroll(ydiff, 0)
+        if xdiff:
+            if quote.xmax >= self.inputbox.boxcols:
+                if ydiff < 0 or newx >= self.inputbox.boxcols:
+                    self.quotebox.xpos = max(0, newx - self.quotebox.xmax)
+                    self.inputbox.xpos = max(0, newx - self.inputbox.xmax)
+                elif self.inputbox.xpos or newx >= self.inputbox.xmax:
+                    self.quotebox.scroll(0, xdiff)
+                    self.inputbox.scroll(0, xdiff)
+            else:
+                self.quotebox.xpos = 0
+                self.inputbox.xpos = 0
+
+        # PLAYER PROGRESS
+        if ydiff or xdiff:
+            self.player.pos = quote.strpos(newy, newx)
+            self.speedbox.update(self.player)
+
+
+def main(*args, **kwargs):
+    import sys
+    if sys.hexversion < 0x020700F0:
+        sys.stderr.write("Require Python 2.7 or later!\n")
+        sys.exit(1)
+    import argparse
+    import getpass
+
+    try:
+        # LOGNAME, USER, LNAME, USERNAME, pw_name
+        user = getpass.getuser().lstrip().split(None, 1)[0].lower()
+    except:
+        user = None
+
+    parser = argparse.ArgumentParser(
+            formatter_class=argparse.RawTextHelpFormatter)
+    parser.add_argument('--cmd', '-c', action='store_true',
+                       help=("use positional arguments as command line"
+                             " (default: %(default)s)"))
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument('--wpm', action='store_true', default=True,
+                       help=("speed in words per minute"
+                             " (default: %(default)s)"))
+    group.add_argument('--cpm', action='store_true',
+                       help=("speed in chars per minute"
+                             " (default: %(default)s)"))
+    group.add_argument('--cps', action='store_true',
+                       help=("speed in chars per second"
+                             " (default: %(default)s)"))
+    parser.add_argument('--speed', type=float,
+                        help=("reference speed in matching unit"
+                              " (default: 100.0)"))
+    parser.add_argument('--wrap', type=int, default=0, metavar='WIDTH',
+                        help=("wrap text at specified width"
+                              " (default: %(default)d)\n"
+                              "[<0 = disable, 0 = auto, >0 = fixed]"))
+    parser.add_argument('--user', default=user, metavar='NAME',
+                        help=("set custom user name"
+                              " (default: %(default)s)"))
+    parser.add_argument('--tabsize', type=int, default=8, metavar='N',
+                        help=("set custom tabsize"
+                              " (default: %(default)d)"))
+    parser.add_argument('--strict', action='store_true',
+                       help=("require manual line breaks"
+                             " (default: %(default)s)"))
+    parser.add_argument('--indent', action='store_true',
+                       help=("enable auto indentation"
+                             " (default: %(default)s)"))
+    parser.add_argument('--syntax', action='store_true',
+                       help=("enable syntax support"
+                             " (default: %(default)s)"))
+    parser.add_argument('--no-strip', action='store_true',
+                       help=("keep excessive whitespace in text"
+                             " (default: %(default)s)"))
+    parser.add_argument('--no-robot', action='store_true',
+                       help=("disable the reference speed robot"
+                             " (default: %(default)s)"))
+    parser.add_argument('--no-color', action='store_true',
+                       help=("disable colors"
+                             " (default: %(default)s)"))
+    parser.add_argument('--code', action='store_true',
+                       help="[--no-strip --indent --syntax]")
+    parser.add_argument('argv', nargs='*', metavar='FILE')
+
+    args = parser.parse_args(*args, **kwargs)
+
+    if args.cmd and not args.argv:
+        parser.error("missing command line")
+    if not args.argv:
+        args.cmd = True
+        args.argv = ['fortune', '-s', '-n', '500']
+    if args.code:
+        args.indent = True
+        args.no_strip = True
+        args.syntax = True
+    if args.cps:
+        speedfactor = 1.0
+        speedunit = 'CPS'
+        speed = args.speed or 8.0
+    elif args.cpm:
+        speedfactor = 60.0
+        speedunit = 'CPM'
+        speed = args.speed or 500.0
+    else:
+        speedfactor = 60.0 / 5.0
+        speedunit = 'WPM'
+        speed = args.speed or 100.0
+    if args.no_robot:
+        speed = 0.0
+    if args.cmd:
+        import subprocess
+        def factory(maxsize):
+            while True:
+                yield subprocess.check_output(args.argv)[:maxsize]
+    else:
+        def factory(maxsize):
+            for fn in args.argv:
+                with open(fn) as fh:
+                    yield fh.read(maxsize)
+
+    #import pprint
+    #pprint.pprint(vars(parser))
+    #pprint.pprint(vars(args))
+    #sys.exit(0)
+
+    instance = SpeedPad(factory,
+                wrap=args.wrap,
+                strict=args.strict,
+                strip=not args.no_strip,
+                indent=args.indent,
+                syntax=args.syntax,
+                tabsize=args.tabsize,
+                color=not args.no_color,
+                user=args.user,
+                speed=speed,
+                speedfactor=speedfactor,
+                speedunit=speedunit)
+    curses.wrapper(instance)
+
+if __name__ == '__main__':
+    main()
+
+# vim: et sw=4 sts=4 ts=4 tw=78 fen fdm=indent fdn=2 fdl=0
