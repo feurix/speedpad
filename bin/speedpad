@@ -38,6 +38,30 @@ import textwrap
 import time
 import tty
 
+SPEED_UNITS = {
+    # chars per second (internal base)
+    'CPS': 1.0,
+    # chars per minute
+    'CPM': 60.0,
+    # words per minute
+    'WPM': 60.0 / 5.0,
+    # pages per minute
+    'PPM': 60.0 / 250.0,
+    # chars per hour (also known as KPH)
+    'CPH': 3600.0,
+}
+
+def cps(speed):
+    return speed * SPEED_UNITS['CPS']
+def cpm(speed):
+    return speed * SPEED_UNITS['CPM']
+def wpm(speed):
+    return speed * SPEED_UNITS['WPM']
+def ppm(speed):
+    return speed * SPEED_UNITS['PPM']
+def cph(speed):
+    return speed * SPEED_UNITS['CPH']
+
 
 class Box(object):
 
@@ -1180,17 +1204,15 @@ def main(*args, **kwargs):
         args.no_strip = True
         args.syntax = True
     if args.cps:
-        speedfactor = 1.0
         speedunit = 'CPS'
         speed = args.speed or 8.0
     elif args.cpm:
-        speedfactor = 60.0
         speedunit = 'CPM'
         speed = args.speed or 500.0
     else:
-        speedfactor = 60.0 / 5.0
         speedunit = 'WPM'
         speed = args.speed or 100.0
+    speedfactor = SPEED_UNITS[speedunit]
     if args.no_robot:
         speed = 0.0
     if args.cmd:

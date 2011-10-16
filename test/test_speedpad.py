@@ -109,6 +109,28 @@ class TestLoader(unittest.TestLoader):
 
 #########################################################################
 
+class TestSpeedUnits(TestCase):
+
+    def test_cps(self):
+        self.assertEqual(speedpad.cps(1.0), 1.0)
+        self.assertEqual(speedpad.cps(2.0), 2.0)
+
+    def test_cpm(self):
+        self.assertEqual(speedpad.cpm(1.0), 60.0)
+        self.assertEqual(speedpad.cpm(2.0), 120.0)
+
+    def test_wpm(self):
+        self.assertEqual(speedpad.wpm(1.0), 60.0 / 5.0)
+        self.assertEqual(speedpad.wpm(2.0), 120.0 / 5.0)
+
+    def test_ppm(self):
+        self.assertEqual(speedpad.ppm(1.0), 60.0 / 250.0)
+        self.assertEqual(speedpad.ppm(2.0), 120.0 / 250.0)
+
+    def test_cph(self):
+        self.assertEqual(speedpad.cph(1.0), 3600.0)
+        self.assertEqual(speedpad.cph(2.0), 7200.0)
+
 
 class TestQuote(TestCase):
 
