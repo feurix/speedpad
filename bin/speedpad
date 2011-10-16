@@ -1085,7 +1085,7 @@ def main(*args, **kwargs):
 
     import locale
     locale.setlocale(locale.LC_ALL, '')
-    encoding = locale.getpreferredencoding()
+    io_encoding = locale.getpreferredencoding()
     fs_encoding = sys.getfilesystemencoding()
 
     try:
@@ -1142,9 +1142,9 @@ def main(*args, **kwargs):
     parser.add_argument('--no-color', action='store_true',
                        help=("disable colors"
                              " (default: %(default)s)"))
-    parser.add_argument('--input-encoding', default=encoding,
+    parser.add_argument('--input-encoding', default=io_encoding,
                         help=argparse.SUPPRESS)
-    parser.add_argument('--output-encoding', default=encoding,
+    parser.add_argument('--output-encoding', default=io_encoding,
                         help=argparse.SUPPRESS)
     parser.add_argument('--filesystem-encoding', default=fs_encoding,
                         help=argparse.SUPPRESS)
