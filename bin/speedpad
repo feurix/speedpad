@@ -441,7 +441,7 @@ class Quote(object):
 class QuoteGenerator(object):
 
     def __init__(self, factory, maxlines, maxcols,
-                 wrap=0, width=0, tabsize=8, strip=True):
+                 wrap=0, width=0, tabsize=8, strip=True, decoder=None):
         if maxlines < 1 or maxcols < 1:
             raise ValueError("invalid size")
         if wrap < 0:
@@ -457,12 +457,19 @@ class QuoteGenerator(object):
         self.maxcols = maxcols
         self.iterator = factory(maxlines * maxcols)
         self.wrapper = textwrap.TextWrapper(width=width)
+        self.decoder = decoder
 
     def __iter__(self):
         return self
 
+    def decode(self, s):
+        if self.decoder is not None:
+            return self.decoder.decode(s)
+        return s
+
     def next(self):
         raw = self.iterator.next()
+        raw = self.decode(raw)
         res = self.clean(raw)
         return Quote(res)
 
@@ -685,7 +692,8 @@ class SpeedPad(object):
                                        width=SpeedPad.SCR_XMIN - 1,
                                        wrap=self.wrap,
                                        tabsize=self.tabsize,
-                                       strip=self.strip)
+                                       strip=self.strip,
+                                       decoder=self.input_decoder)
 
     def initplayers(self):
         """Initialize and register players"""
@@ -1180,7 +1188,7 @@ def main(*args, **kwargs):
                 if args.input_encoding != args.filesystem_encoding:
                     fn = fn.decode(args.input_encoding)
                     fn = fn.encode(args.filesystem_encoding)
-                with codecs.open(fn, encoding=args.input_encoding) as fh:
+                with open(fn, 'rb') as fh:
                     yield fh.read(maxsize)
 
     #import pprint
