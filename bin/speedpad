@@ -378,30 +378,41 @@ class InputBox(PadBox):
 
     def draw_stats(self, quote, player):
         if quote.stats.timer.elapsed < 1.0:
-            self.pad.addstr(0, 0, "Speed: inconclusive")
+            self.pad.addstr(0, 0, "Speed: unknown")
         else:
-            cut = 10 ** (7 - 1 - 3) - 10 ** -3
-            self.pad.addstr(0, 0, "Speed: %7.3f CPS" % min(cut,
+            cut = 10 ** (6 - 1 - 3) - 10 ** -3
+            self.pad.addstr(0, 0, "Speed: %6.3f CPS" % min(cut,
                                                            cps(player.speed)))
-            cut = 10 ** (14 - 1 - 3) - 10 ** -3
-            self.pad.addstr(1, 0, "%14.3f CPM" % min(cut, cpm(player.speed)))
-            self.pad.addstr(2, 0, "%14.3f WPM" % min(cut, wpm(player.speed)))
-            self.pad.addstr(3, 0, "%14.3f PPM" % min(cut, ppm(player.speed)))
-            self.pad.addstr(4, 0, "%14.3f CPH" % min(cut, cph(player.speed)))
+            cut = 10 ** (13 - 1 - 3) - 10 ** -3
+            self.pad.addstr(1, 0, "%13.3f CPM" % min(cut, cpm(player.speed)))
+            self.pad.addstr(2, 0, "%13.3f WPM" % min(cut, wpm(player.speed)))
+            self.pad.addstr(3, 0, "%13.3f PPM" % min(cut, ppm(player.speed)))
+            self.pad.addstr(4, 0, "%13.3f CPH" % min(cut, cph(player.speed)))
         cut = 10 ** 4 - 1
-        self.pad.addstr(0, 20, "Keystrokes: %4d (enter)" %
+        self.pad.addstr(0, 19, "Keystrokes: %4d (enter)" %
                         min(cut, quote.stats.keystrokes_enter))
         cut = 10 ** 16 - 1
-        self.pad.addstr(1, 20, "%16d (tab/space)" %
+        self.pad.addstr(1, 19, "%16d (tab/space)" %
                         min(cut, quote.stats.keystrokes_tab +
                                  quote.stats.keystrokes_space))
-        self.pad.addstr(2, 20, "%16d (good)" %
+        self.pad.addstr(2, 19, "%16d (good)" %
                         min(cut, quote.stats.keystrokes_good))
-        self.pad.addstr(3, 20, "%16d (typo)" %
+        self.pad.addstr(3, 19, "%16d (typo)" %
                         min(cut, quote.stats.keystrokes_typo))
-        self.pad.addstr(4, 20, "%16d (total)" %
+        self.pad.addstr(4, 19, "%16d (total)" %
                         min(cut, quote.stats.keystrokes_good +
                                  quote.stats.keystrokes_typo))
+        highscore = quote.stats.typo_highscore[:5]
+        self.pad.addstr(0, 48, "Top 5 typos:")
+        self.pad.addstr(1, 48, "  [x] 54321")
+        self.pad.addstr(2, 48, "   |  |")
+        self.pad.addstr(3, 48, "   |  typos")
+        self.pad.addstr(4, 48, "   expected")
+        for pos, score in enumerate(highscore):
+            expected, typos = score
+            typos = ''.join(typo for typo, count in typos)
+            self.pad.addstr(pos, 61, "[%s] %s" % (expected, typos))
+
 
 class InputStats(object):
 
@@ -414,8 +425,22 @@ class InputStats(object):
         self.keystrokes_enter = 0
         self.timer = Timer()
 
+        # Assume we expect good character 'x' and:
+        # - get typo 'y' instead:
+        #   typocounts['x']['y'] += 1
+        #   typocounts -> {'x': {'y': 1}}
+        # - get typo 'z' instead:
+        #   typocounts['x']['z'] += 1
+        #   typocounts -> {'x': {'y': 1, 'z': 1}}
+        # - get typo 'z' again:
+        #   typocounts['x']['z'] += 1
+        #   typocounts -> {'x': {'y': 1, 'z': 2}}
+        self.typocounts = collections.defaultdict(
+                lambda: collections.defaultdict(int))
+
     def reset(self):
         self.typos = {}
+        self.typocounts.clear()
         self.keystrokes_typo = 0
         self.keystrokes_good = 0
         self.keystrokes_tab = 0
@@ -437,6 +462,32 @@ class InputStats(object):
         elapsed = float(self.timer.elapsed)
         if elapsed < 1.0: return 0.0
         return self.keystrokes_good / elapsed
+
+    @property
+    def typo_highscore(self):
+        highscore = []
+        typocounts = self.typocounts.items()
+        # [(c,{z:1}), (z,{x:1,y:2}), (a,{x:1}), (b,{v:2})]
+        # sort increasing by alphabet
+        typocounts.sort(key=operator.itemgetter(0))
+        # [(a,{x:1}), (b,{v:2}, (c,{z:1}), (z,{x:1,y:2})]
+        # sort decreasing by amount of typos (stable)
+        typocounts.sort(key=lambda i: sum(v for k, v in i[1].iteritems()),
+                        reverse=True)
+        # [(z,{x:1,y:2}), (b,{v:2}), (a,{x:1}), (c,{z:1})]
+        # sort nested dicts decreasing by value
+        for expected, typos in typocounts:
+            typos = typos.items()
+            # [(x,1), (y,2), (a,1)]
+            # sort increasing by alphabet
+            typos.sort(key=operator.itemgetter(0))
+            # [(a,1), (x,1), (y,2)]
+            # sort decreasing by amount of typos (stable)
+            typos.sort(key=operator.itemgetter(1), reverse=True)
+            # [(y,2), (a,1), (x,1)]
+            highscore.append((expected, typos))
+        # [(z,[(y,2),(x,1)]), (b,[(v,2)]), (a,[(x,1)]), (c,[(z,1)])]
+        return highscore
 
 
 class Quote(object):
@@ -469,12 +520,14 @@ class Quote(object):
     def istypo(self, ypos, xpos, s, record=False, **kwargs):
         if not self.inrange(ypos, xpos):
             return True
-        if s == self.lines[ypos][xpos]:
+        expect = self.lines[ypos][xpos]
+        if s == expect:
             if record:
                 self.stats.fixtypo(ypos, xpos, **kwargs)
             return False
         if record:
             self.stats.addtypo(ypos, xpos, **kwargs)
+            self.stats.typocounts[expect][s] += 1
         return True
 
     def eol(self, ypos):

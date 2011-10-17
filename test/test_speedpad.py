@@ -241,6 +241,57 @@ class TestQuote(TestCase):
         quote.istypo(0, 4, 'b', record=True)
         self.assertTrue(quote.iscorrect())
 
+    def test_typo_highscore(self):
+        quote = speedpad.Quote([
+                "foobar",
+        ])
+        quote.stats.typocounts['f']['a'] += 1
+        quote.stats.typocounts['o']['b'] += 1
+        quote.stats.typocounts['o']['c'] += 1
+        quote.stats.typocounts['b']['d'] += 1
+        quote.stats.typocounts['a']['e'] += 1
+        quote.stats.typocounts['r']['f'] += 1
+        self.assertEqual([
+                ('o', [('b', 1), ('c', 1)]),
+                ('a', [('e', 1)]),
+                ('b', [('d', 1)]),
+                ('f', [('a', 1)]),
+                ('r', [('f', 1)]),
+        ], quote.stats.typo_highscore)
+        quote.stats.typocounts['f']['b'] += 2
+        self.assertEqual([
+                ('f', [('b', 2), ('a', 1)]),
+                ('o', [('b', 1), ('c', 1)]),
+                ('a', [('e', 1)]),
+                ('b', [('d', 1)]),
+                ('r', [('f', 1)]),
+        ], quote.stats.typo_highscore)
+        quote.stats.typocounts['b']['c'] += 1
+        quote.stats.typocounts['o']['b'] += 2
+        self.assertEqual([
+                ('o', [('b', 3), ('c', 1)]),
+                ('f', [('b', 2), ('a', 1)]),
+                ('b', [('c', 1), ('d', 1)]),
+                ('a', [('e', 1)]),
+                ('r', [('f', 1)]),
+        ], quote.stats.typo_highscore)
+        quote.stats.typocounts['r']['f'] += 4
+        self.assertEqual([
+                ('r', [('f', 5)]),
+                ('o', [('b', 3), ('c', 1)]),
+                ('f', [('b', 2), ('a', 1)]),
+                ('b', [('c', 1), ('d', 1)]),
+                ('a', [('e', 1)]),
+        ], quote.stats.typo_highscore)
+        quote.stats.typocounts['f']['a'] += 2
+        self.assertEqual([
+                ('f', [('a', 3), ('b', 2)]),
+                ('r', [('f', 5)]),
+                ('o', [('b', 3), ('c', 1)]),
+                ('b', [('c', 1), ('d', 1)]),
+                ('a', [('e', 1)]),
+        ], quote.stats.typo_highscore)
+
 
 class TestQuoteGenerator(TestCase):
 
@@ -432,6 +483,7 @@ class TestInputStats(TestCase):
     def test_counters(self):
         stats = speedpad.InputStats()
         self.assertFalse(stats.typos)
+        self.assertFalse(stats.typocounts)
         self.assertEqual(stats.keystrokes_typo, 0)
         self.assertEqual(stats.keystrokes_good, 0)
         self.assertEqual(stats.keystrokes_tab, 0)
@@ -456,8 +508,10 @@ class TestInputStats(TestCase):
         stats.keystrokes_tab = 1
         stats.keystrokes_space = 2
         stats.keystrokes_enter = 3
+        stats.typocounts['x']['y'] += 1
         stats.reset()
         self.assertFalse(stats.typos)
+        self.assertFalse(stats.typocounts)
         self.assertEqual(stats.keystrokes_typo, 0)
         self.assertEqual(stats.keystrokes_good, 0)
         self.assertEqual(stats.keystrokes_tab, 0)
@@ -987,6 +1041,10 @@ class TestSpeedPad(CursesTestCase):
         self.assertTrue(self.quote.stats.typos)
         self.assertIn((0, 0), self.quote.stats.typos)
         self.assertTrue(self.quote.stats.typos[0, 0])
+        self.assertTrue(self.quote.stats.typocounts)
+        self.assertIn('1', self.quote.stats.typocounts)
+        self.assertIn(' ', self.quote.stats.typocounts['1'])
+        self.assertEqual(self.quote.stats.typocounts['1'][' '], 1)
         self.assertEqual(self.quote.stats.keystrokes_typo, 1)
         self.assertEqual(self.quote.stats.keystrokes_good, 0)
         self.assertEqual(self.quote.stats.keystrokes_tab, 0)
@@ -1008,11 +1066,13 @@ class TestSpeedPad(CursesTestCase):
         process(ord('1'))
         self.assertEqual(self.instance.player.pos, 1)
         self.assertFalse(self.quote.stats.typos)
+        self.assertFalse(self.quote.stats.typocounts)
         self.assertEqual(self.quote.stats.keystrokes_typo, 0)
         self.assertEqual(self.quote.stats.keystrokes_good, 1)
         process(ord('2'))
         self.assertEqual(self.instance.player.pos, 2)
         self.assertFalse(self.quote.stats.typos)
+        self.assertFalse(self.quote.stats.typocounts)
         self.assertEqual(self.quote.stats.keystrokes_typo, 0)
         self.assertEqual(self.quote.stats.keystrokes_good, 2)
         self.assertTrue(self.quote.iscomplete(0, 2))
@@ -1104,6 +1164,16 @@ class TestSpeedPad(CursesTestCase):
         self.assertTrue(self.quote.stats.typos)
         self.assertIn((1, 2), self.quote.stats.typos)
         self.assertTrue(self.quote.stats.typos[1, 2])
+        self.assertTrue(self.quote.stats.typocounts)
+        self.assertIn('b', self.quote.stats.typocounts)
+        self.assertIn('a', self.quote.stats.typocounts)
+        self.assertIn('z', self.quote.stats.typocounts)
+        self.assertIn(' ', self.quote.stats.typocounts['b'])
+        self.assertIn(' ', self.quote.stats.typocounts['a'])
+        self.assertIn('x', self.quote.stats.typocounts['z'])
+        self.assertEqual(self.quote.stats.typocounts['b'][' '], 1)
+        self.assertEqual(self.quote.stats.typocounts['a'][' '], 1)
+        self.assertEqual(self.quote.stats.typocounts['z']['x'], 1)
         self.assertEqual(self.quote.stats.keystrokes_typo, 3)
         self.assertEqual(self.quote.stats.keystrokes_good, 8)
         # no-ops after completion, only backspace
@@ -1122,13 +1192,20 @@ class TestSpeedPad(CursesTestCase):
         self.assertTrue(self.quote.stats.typos[1, 2])
         self.assertEqual(self.quote.stats.keystrokes_typo, 3)
         self.assertEqual(self.quote.stats.keystrokes_good, 8)
+        # put x instead of z again
+        process(ord('x'))
+        self.assertEqual(self.instance.player.pos, 14)
+        self.assertEqual(self.quote.stats.keystrokes_typo, 4)
+        self.assertIn('x', self.quote.stats.typocounts['z'])
+        self.assertEqual(self.quote.stats.typocounts['z']['x'], 2)
+        process(curses.ascii.BS)
         # correct error
         process(ord('z'))
         self.assertEqual(self.instance.player.pos, 14)
         self.assertTrue(self.quote.stats.typos)
         self.assertIn((1, 2), self.quote.stats.typos)
         self.assertFalse(self.quote.stats.typos[1, 2])
-        self.assertEqual(self.quote.stats.keystrokes_typo, 3)
+        self.assertEqual(self.quote.stats.keystrokes_typo, 4)
         self.assertEqual(self.quote.stats.keystrokes_good, 9)
         self.assertTrue(self.quote.iscomplete(1, 3))
         self.assertTrue(self.quote.iscorrect())
