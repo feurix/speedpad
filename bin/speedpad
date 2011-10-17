@@ -383,42 +383,52 @@ class InputBox(PadBox):
         return continuation
 
     def draw_stats(self, quote, player):
+        xpos = 0
         if quote.stats.timer.elapsed < 1.0:
-            self.pad.addstr(0, 0, "Speed: unknown")
+            self.pad.addstr(0, xpos, "Speed: unknown")
         else:
             cut = 10 ** (6 - 1 - 3) - 10 ** -3
-            self.pad.addstr(0, 0, "Speed: %6.3f CPS" % min(cut,
-                                                           cps(player.speed)))
+            self.pad.addstr(0, xpos, "Speed: %6.3f CPS" %
+                            min(cut, cps(player.speed)))
             cut = 10 ** (13 - 1 - 3) - 10 ** -3
-            self.pad.addstr(1, 0, "%13.3f CPM" % min(cut, cpm(player.speed)))
-            self.pad.addstr(2, 0, "%13.3f WPM" % min(cut, wpm(player.speed)))
-            self.pad.addstr(3, 0, "%13.3f PPM" % min(cut, ppm(player.speed)))
-            self.pad.addstr(4, 0, "%13.3f CPH" % min(cut, cph(player.speed)))
+            self.pad.addstr(1, xpos, "%13.3f CPM" %
+                            min(cut, cpm(player.speed)))
+            self.pad.addstr(2, xpos, "%13.3f WPM" %
+                            min(cut, wpm(player.speed)))
+            self.pad.addstr(3, xpos, "%13.3f PPM" %
+                            min(cut, ppm(player.speed)))
+            self.pad.addstr(4, xpos, "%13.3f CPH" %
+                            min(cut, cph(player.speed)))
+        xpos = 19
         cut = 10 ** 4 - 1
-        self.pad.addstr(0, 19, "Keystrokes: %4d (enter)" %
+        self.pad.addstr(0, xpos, "Keystrokes: %4d (enter)" %
                         min(cut, quote.stats.keystrokes_enter))
         cut = 10 ** 16 - 1
-        self.pad.addstr(1, 19, "%16d (tab/space)" %
+        self.pad.addstr(1, xpos, "%16d (tab/space)" %
                         min(cut, quote.stats.keystrokes_tab +
                                  quote.stats.keystrokes_space))
-        self.pad.addstr(2, 19, "%16d (good)" %
-                        min(cut, quote.stats.keystrokes_good))
-        self.pad.addstr(3, 19, "%16d (typo)" %
-                        min(cut, quote.stats.keystrokes_typo))
-        self.pad.addstr(4, 19, "%16d (total)" %
-                        min(cut, quote.stats.keystrokes_good +
-                                 quote.stats.keystrokes_typo))
+        good = float(quote.stats.keystrokes_good)
+        typo = float(quote.stats.keystrokes_typo)
+        total = float(good + typo)
+        self.pad.addstr(2, xpos, "%16d (good: %d%%)" % (min(cut, good),
+                                                        good / total * 100))
+        self.pad.addstr(3, xpos, "%16d (typo: %d%%)" % (min(cut, typo),
+                                                        typo / total * 100))
+        self.pad.addstr(4, xpos, "%16d (total)" % min(cut, total))
         highscore = quote.stats.typo_highscore[:5]
-        self.pad.addstr(0, 48, "Top 5 typos:")
-        self.pad.addstr(1, 48, "  [x] 54321")
-        self.pad.addstr(2, 48, "   |  |")
-        self.pad.addstr(3, 48, "   |  typos")
-        self.pad.addstr(4, 48, "   expected")
-        for pos, score in enumerate(highscore):
+        xpos = min(72, self.boxcols) - 23
+        self.pad.addstr(0, xpos, "Top 5 typos:")
+        self.pad.addstr(1, xpos, "  [x] 54321 ")
+        self.pad.addstr(2, xpos, "   |  |     ")
+        self.pad.addstr(3, xpos, "   |  typos ")
+        self.pad.addstr(4, xpos, "   expected ")
+        xpos += 13
+        for ypos, score in enumerate(highscore):
             expected, typos = score
             typos = ''.join(typo for typo, count in typos)
-            self.pad.addstr(pos, 61, "[%s] %s" % (self.encode(expected[:1]),
-                                                  self.encode(typos[:5])))
+            self.pad.addstr(ypos, xpos, "[%s] %s" %
+                            (self.encode(expected[:1]),
+                             self.encode(typos[:5])))
 
 
 class InputStats(object):
