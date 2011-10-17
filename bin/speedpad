@@ -285,9 +285,6 @@ class QuoteBox(PadBox):
         for ypos, xpos in quote.stats.typos:
             self.pad.chgat(ypos, xpos, 1, curses.A_REVERSE)
 
-    def banner(self):
-        self.pad.addstr(0, 0, "waiting...")
-
 
 class InputBox(PadBox):
 
@@ -987,12 +984,6 @@ class SpeedPad(InputDecodingMixIn, OutputEncodingMixIn):
 
     def loop(self):
         """Process quotes and handle user input"""
-# XXX banner?
-#        self.quotebox.reset()
-#        self.quotebox.banner()
-#        self.quotebox.noutrefresh()
-#        curses.doupdate()
-
         update_interval_screen = 0.1    # seconds
         update_interval_speed = 0.5     # seconds
         update_interval_progress = 0.1  # seconds
@@ -1095,12 +1086,6 @@ class SpeedPad(InputDecodingMixIn, OutputEncodingMixIn):
             self.hide_cursor()
             self.update_screen()
             # end quote
-
-# XXX banner?
-#            self.quotebox.reset()
-#            self.quotebox.banner()
-#            self.quotebox.noutrefresh()
-#            curses.doupdate()
 
     def process(self, quote, chars, writable=True, keyboard=True):
         """Process one multi-byte character"""
