@@ -952,6 +952,8 @@ class SpeedPad(InputDecodingMixIn, OutputEncodingMixIn):
     def start_pager(self, quote):
         self.quotebox.reset()
         self.inputbox.reset()
+        self.update_player_speed(quote)
+        self.update_robot_pos(quote)
         self.quotebox.draw_stats(quote)
         self.inputbox.draw_stats(quote, self.player)
         self.quotebox.noutrefresh()
