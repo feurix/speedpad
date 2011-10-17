@@ -768,6 +768,7 @@ class SpeedPad(InputDecodingMixIn, OutputEncodingMixIn):
         self.color_menu = curses.A_REVERSE
         self.active = False
         self.dumbtty = True
+        self.cursor = True
         self.queue = collections.deque()
         self.player = player or Player(self.user or "user")
         self.robot = robot or self.speed and Robot("robot", self.speed)
@@ -968,6 +969,22 @@ class SpeedPad(InputDecodingMixIn, OutputEncodingMixIn):
         self.screen.noutrefresh()
         curses.doupdate()
 
+    def show_cursor(self):
+        if self.cursor is None or self.cursor: return
+        try:
+            curses.curs_set(1)
+            self.cursor = True
+        except curses.error:
+            self.cursor = None
+
+    def hide_cursor(self):
+        if self.cursor is None or not self.cursor: return
+        try:
+            curses.curs_set(0)
+            self.cursor = False
+        except curses.error:
+            self.cursor = None
+
     def loop(self):
         """Process quotes and handle user input"""
 # XXX banner?
@@ -984,6 +1001,8 @@ class SpeedPad(InputDecodingMixIn, OutputEncodingMixIn):
         update_iterations_screen = int(update_interval_screen / sleep)
         update_iterations_speed = int(update_interval_speed / sleep)
         update_iterations_progress = int(update_interval_progress / sleep)
+        self.hide_cursor()
+        self.update_screen()
         for quote in self.quotegen:     # next quote
             while True:                 # next round
                 curses.flushinp()
@@ -994,6 +1013,7 @@ class SpeedPad(InputDecodingMixIn, OutputEncodingMixIn):
                 self.inputbox.reset()
                 self.speedbox.load(quote)
                 self.quotebox.load(quote)
+                self.show_cursor()
                 self.update_screen(quote)
                 update_iteration_screen = 0
                 update_iteration_speed = 0
@@ -1043,6 +1063,7 @@ class SpeedPad(InputDecodingMixIn, OutputEncodingMixIn):
                     except EOFError:
                         self.queue.clear()
                         if writable:
+                            self.hide_cursor()
                             self.start_pager(quote)
                             writable = False
                         else:
@@ -1066,12 +1087,14 @@ class SpeedPad(InputDecodingMixIn, OutputEncodingMixIn):
                     update_iteration_screen = 0
                     update_iteration_speed += 1
                     update_iteration_progress += 1
-                    # next keypress
+                    # end keypress
 
                 if not restart: break
-                # next round
+                # end round
 
-            # next quote
+            self.hide_cursor()
+            self.update_screen()
+            # end quote
 
 # XXX banner?
 #            self.quotebox.reset()
