@@ -472,8 +472,8 @@ class InputStats(object):
         typocounts.sort(key=operator.itemgetter(0))
         # [(a,{x:1}), (b,{v:2}, (c,{z:1}), (z,{x:1,y:2})]
         # sort decreasing by amount of typos (stable)
-        typocounts.sort(key=lambda i: sum(v for k, v in i[1].iteritems()),
-                        reverse=True)
+        typosum = lambda i: sum(v for k, v in i[1].iteritems())
+        typocounts.sort(key=typosum, reverse=True)
         # [(z,{x:1,y:2}), (b,{v:2}), (a,{x:1}), (c,{z:1})]
         # sort nested dicts decreasing by value
         for expected, typos in typocounts:
