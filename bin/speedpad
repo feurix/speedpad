@@ -265,7 +265,7 @@ class SpeedBox(Box):
             if len(players) > 1:
                 self.box.addstr(ypos, 0, "#%d" % min(9, (ypos + 1)),
                                 curses.A_BOLD)
-            self.box.addstr(ypos, 4, self.encode(player.name)[:8])
+            self.box.addstr(ypos, 4, self.encode(player.name[:8]))
             self.box.addstr(ypos, 13, "%4d %s" % (
                     min(9999, player.speed * factor), unit[:3]))
             player.progressbar.draw(self.box, ypos, 22, color=player.color)
@@ -417,7 +417,8 @@ class InputBox(PadBox):
         for pos, score in enumerate(highscore):
             expected, typos = score
             typos = ''.join(typo for typo, count in typos)
-            self.pad.addstr(pos, 61, "[%s] %s" % (expected, typos))
+            self.pad.addstr(pos, 61, "[%s] %s" % (self.encode(expected[:1]),
+                                                  self.encode(typos[:5])))
 
 
 class InputStats(object):
