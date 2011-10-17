@@ -838,7 +838,7 @@ class SpeedPad(InputDecodingMixIn, OutputEncodingMixIn):
         return ymax, xmax
 
     def _sigwinchhandler(self, signum, frame):
-        size = fcntl.ioctl(0, tty.TIOCGWINSZ, '12345678')
+        size = fcntl.ioctl(2, tty.TIOCGWINSZ, '12345678')
         size = struct.unpack('4H', size)
         curses.resize_term(size[0], size[1])
         self.sync()
@@ -1370,7 +1370,20 @@ def main(*args, **kwargs):
     if not args.argv:
         args.cmd = True
         args.argv = ['fortune', '-s', '-n', '500']
-    if args.cmd:
+
+    if not os.isatty(0):
+        if not os.isatty(2):
+            sys.stderr.write("Unable to find tty-like device!\n")
+            sys.exit(1)
+        os.dup2(0, 3)
+        os.dup2(2, 0)
+        def factory(maxsize):
+            with os.fdopen(3, 'rb') as pipe:
+                while True:
+                    data = pipe.read(maxsize)
+                    if not data: break
+                    yield data
+    elif args.cmd:
         import subprocess
         def factory(maxsize):
             while True:
