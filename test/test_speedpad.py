@@ -111,25 +111,35 @@ class TestLoader(unittest.TestLoader):
 
 class TestSpeedUnits(TestCase):
 
+    @classmethod
+    def setUpClass(cls):
+        cls.one = speedpad.Speed(1.0)
+        cls.two = speedpad.Speed(2.0)
+
     def test_cps(self):
-        self.assertEqual(speedpad.cps(1.0), 1.0)
-        self.assertEqual(speedpad.cps(2.0), 2.0)
+        self.assertEqual(speedpad.cps(self.one), 1.0)
+        self.assertEqual(speedpad.cps(self.two), 2.0)
+        self.assertEqual(str(speedpad.cps), 'CPS')
 
     def test_cpm(self):
-        self.assertEqual(speedpad.cpm(1.0), 60.0)
-        self.assertEqual(speedpad.cpm(2.0), 120.0)
+        self.assertEqual(speedpad.cpm(self.one), 60.0)
+        self.assertEqual(speedpad.cpm(self.two), 120.0)
+        self.assertEqual(str(speedpad.cpm), 'CPM')
 
     def test_wpm(self):
-        self.assertEqual(speedpad.wpm(1.0), 60.0 / 5.0)
-        self.assertEqual(speedpad.wpm(2.0), 120.0 / 5.0)
+        self.assertEqual(speedpad.wpm(self.one), 60.0 / 5.0)
+        self.assertEqual(speedpad.wpm(self.two), 120.0 / 5.0)
+        self.assertEqual(str(speedpad.wpm), 'WPM')
 
     def test_ppm(self):
-        self.assertEqual(speedpad.ppm(1.0), 60.0 / 250.0)
-        self.assertEqual(speedpad.ppm(2.0), 120.0 / 250.0)
+        self.assertEqual(speedpad.ppm(self.one), 60.0 / 250.0)
+        self.assertEqual(speedpad.ppm(self.two), 120.0 / 250.0)
+        self.assertEqual(str(speedpad.ppm), 'PPM')
 
     def test_cph(self):
-        self.assertEqual(speedpad.cph(1.0), 3600.0)
-        self.assertEqual(speedpad.cph(2.0), 7200.0)
+        self.assertEqual(speedpad.cph(self.one), 3600.0)
+        self.assertEqual(speedpad.cph(self.two), 7200.0)
+        self.assertEqual(str(speedpad.cph), 'CPH')
 
 
 class TestQuote(TestCase):

@@ -38,30 +38,6 @@ import textwrap
 import time
 import tty
 
-SPEED_UNITS = {
-    # chars per second (internal base)
-    'CPS': 1.0,
-    # chars per minute
-    'CPM': 60.0,
-    # words per minute
-    'WPM': 60.0 / 5.0,
-    # pages per minute
-    'PPM': 60.0 / 250.0,
-    # chars per hour (also known as KPH)
-    'CPH': 3600.0,
-}
-
-def cps(speed):
-    return speed * SPEED_UNITS['CPS']
-def cpm(speed):
-    return speed * SPEED_UNITS['CPM']
-def wpm(speed):
-    return speed * SPEED_UNITS['WPM']
-def ppm(speed):
-    return speed * SPEED_UNITS['PPM']
-def cph(speed):
-    return speed * SPEED_UNITS['CPH']
-
 
 class OutputEncodingMixIn(object):
 
@@ -255,7 +231,7 @@ class SpeedBox(Box):
             player.progressbar.reset()
             player.reset()
 
-    def draw(self, unit='CPS', factor=1.0):
+    def draw(self, speedunit):
         ymax = self.boxlines - 1
         players = self.players
         players.sort(key=operator.attrgetter('pos'), reverse=True)
@@ -265,9 +241,9 @@ class SpeedBox(Box):
             if len(players) > 1:
                 self.box.addstr(ypos, 0, "#%d" % min(9, (ypos + 1)),
                                 curses.A_BOLD)
-            self.box.addstr(ypos, 4, self.encode(player.name[:8]))
-            self.box.addstr(ypos, 13, "%4d %s" % (
-                    min(9999, player.speed * factor), unit[:3]))
+            self.box.addstr(ypos, 4, self.encode(player.name[:8].ljust(8)))
+            self.box.addstr(ypos, 13, "%4d %s" %
+                            (min(9999, speedunit(player.speed)), speedunit))
             player.progressbar.draw(self.box, ypos, 22, color=player.color)
             self.box.insstr(ypos, self.boxcols - 4,
                             "%3d%%" % (player.progressbar.pos * 100))
@@ -384,36 +360,32 @@ class InputBox(PadBox):
         if quote.stats.timer.elapsed < 1.0:
             self.pad.addstr(0, xpos, "Speed: unknown")
         else:
-            cut = 10 ** (6 - 1 - 3) - 10 ** -3
-            self.pad.addstr(0, xpos, "Speed: %6.3f CPS" %
-                            min(cut, cps(player.speed)))
-            cut = 10 ** (13 - 1 - 3) - 10 ** -3
-            self.pad.addstr(1, xpos, "%13.3f CPM" %
-                            min(cut, cpm(player.speed)))
-            self.pad.addstr(2, xpos, "%13.3f WPM" %
-                            min(cut, wpm(player.speed)))
-            self.pad.addstr(3, xpos, "%13.3f PPM" %
-                            min(cut, ppm(player.speed)))
-            self.pad.addstr(4, xpos, "%13.3f CPH" %
-                            min(cut, cph(player.speed)))
+            format = lambda speed: min(10 ** (6 - 1 - 3) - 10 ** -3, speed)
+            self.pad.addstr(0, xpos, "Speed: %6.3f %s" %
+                            (format(cps(player.speed)), cps))
+            format = lambda speed: min(10 ** (13 - 1 - 3) - 10 ** -3, speed)
+            for ypos, unit in enumerate((cpm, wpm, ppm, cph), 1):
+                self.pad.addstr(ypos, xpos, "%13.3f %s" %
+                                (format(unit(player.speed)), unit))
         xpos = 19
-        cut = 10 ** 4 - 1
+        format = lambda keystrokes: min(10 ** 4 - 1, keystrokes)
         self.pad.addstr(0, xpos, "Keystrokes: %4d (enter)" %
-                        min(cut, quote.stats.keystrokes_enter))
-        cut = 10 ** 16 - 1
+                        format(quote.stats.keystrokes_enter))
+        format = lambda keystrokes: min(10 ** 16 - 1, keystrokes)
         self.pad.addstr(1, xpos, "%16d (tab/space)" %
-                        min(cut, quote.stats.keystrokes_tab +
-                                 quote.stats.keystrokes_space))
+                        format(quote.stats.keystrokes_tab +
+                               quote.stats.keystrokes_space))
         good = float(quote.stats.keystrokes_good)
         typo = float(quote.stats.keystrokes_typo)
         total = float(good + typo)
-        self.pad.addstr(2, xpos, "%16d (good: %d%%)" % (min(cut, good),
-                                                        good / total * 100))
-        self.pad.addstr(3, xpos, "%16d (typo: %d%%)" % (min(cut, typo),
-                                                        typo / total * 100))
-        self.pad.addstr(4, xpos, "%16d (total)" % min(cut, total))
-        highscore = quote.stats.typo_highscore[:5]
+        self.pad.addstr(2, xpos, "%16d (good: %d%%)" %
+                        (format(good), round(good / total * 100)))
+        self.pad.addstr(3, xpos, "%16d (typo: %d%%)" %
+                        (format(typo), round(typo / total * 100)))
+        self.pad.addstr(4, xpos, "%16d (total)" % format(total))
+
         xpos = min(72, self.boxcols) - 23
+        highscore = quote.stats.typo_highscore[:5]
         self.pad.addstr(0, xpos, "Top 5 typos:")
         self.pad.addstr(1, xpos, "  [x] 54321 ")
         self.pad.addstr(2, xpos, "   |  |     ")
@@ -474,8 +446,8 @@ class InputStats(object):
     @property
     def speed(self):
         elapsed = float(self.timer.elapsed)
-        if elapsed < 1.0: return 0.0
-        return self.keystrokes_good / elapsed
+        if elapsed < 1.0: return Speed(0.0)
+        return Speed(self.keystrokes_good / elapsed)
 
     @property
     def typo_highscore(self):
@@ -711,21 +683,21 @@ class Player(object):
         self.name = name
         self.color = color
         self.pos = 0
-        self.speed = 0
+        self.speed = Speed(0.0)
 
     def __hash__(self):
         return hash(self.name)
 
     def reset(self):
         self.pos = 0
-        self.speed = 0
+        self.speed = Speed(0.0)
 
 
 class Robot(Player):
 
     def __init__(self, name, speed):
         super(Robot, self).__init__(name)
-        self.speed = speed
+        self.speed = Speed(speed)
 
     def reset(self):
         self.pos = 0
@@ -742,8 +714,7 @@ class SpeedPad(InputDecodingMixIn, OutputEncodingMixIn):
     def __init__(self, factory=lambda maxsize: [],
                  strict=False, strip=True, color=True, indent=False,
                  syntax=False, user=None, robot=None, player=None,
-                 wrap=0, tabsize=8,
-                 speed=0.0, speedfactor=1.0, speedunit='CPS',
+                 wrap=0, tabsize=8, speed=0.0, speedunit=None,
                  input_encoding=None, output_encoding=None):
         self.input_encoding = input_encoding
         self.output_encoding = output_encoding
@@ -753,20 +724,19 @@ class SpeedPad(InputDecodingMixIn, OutputEncodingMixIn):
         self.strict = strict
         self.strip = strip
         self.syntax = syntax
-        self.wrap = wrap
+        self.wrap = int(wrap)
         self.quotegen = None
-        self.speedfactor = speedfactor
-        self.speedunit = speedunit
-        self.speed = max(0.0, float(speed)) / float(speedfactor)
-        self.tabsize = min(20, max(0, tabsize))
+        self.tabsize = min(20, max(0, int(tabsize)))
         self.xmax = SpeedPad.SCR_XMIN
         self.ymax = SpeedPad.SCR_YMIN
         self.color = color
-        self.color_menu = curses.A_REVERSE
+        self.menucolor = curses.A_REVERSE
         self.active = False
         self.dumbtty = True
         self.cursor = True
         self.queue = collections.deque()
+        self.speed = max(0.0, speed)
+        self.speedunit = speedunit or cps
         self.player = player or Player(self.user or "user")
         self.robot = robot or self.speed and Robot("robot", self.speed)
 
@@ -833,7 +803,7 @@ class SpeedPad(InputDecodingMixIn, OutputEncodingMixIn):
             return
         curses.init_pair(1, curses.COLOR_WHITE, curses.COLOR_BLUE)
         curses.init_pair(2, curses.COLOR_YELLOW, -1)
-        self.color_menu = curses.color_pair(1)
+        self.menucolor = curses.color_pair(1)
         self.player.color = curses.color_pair(2)
         if self.robot:
             curses.init_pair(3, curses.COLOR_CYAN, -1)
@@ -895,7 +865,7 @@ class SpeedPad(InputDecodingMixIn, OutputEncodingMixIn):
             elapsed = str(datetime.timedelta(seconds=seconds))
             self.draw_header(status=elapsed)
         self.draw_footer()
-        self.speedbox.draw(unit=self.speedunit, factor=self.speedfactor)
+        self.speedbox.draw(self.speedunit)
         self.screen.noutrefresh()
         self.speedbox.noutrefresh()
         self.quotebox.noutrefresh()
@@ -913,7 +883,7 @@ class SpeedPad(InputDecodingMixIn, OutputEncodingMixIn):
         self.speedbox.update(self.robot)
 
     def draw_header(self, status=None):
-        attr = self.color_menu
+        attr = self.menucolor
         ypos = 0
         self.screen.hline(ypos, 0, curses.ascii.SP, self.xmax, attr)
         self.screen.addstr(ypos, 0, "speedpad version %s" % __version__, attr)
@@ -922,7 +892,7 @@ class SpeedPad(InputDecodingMixIn, OutputEncodingMixIn):
             self.screen.addstr(ypos, self.xmax - len(status), status, attr)
 
     def draw_quote_sep(self, status=None):
-        attr = self.color_menu
+        attr = self.menucolor
         ypos = 5 if self.robot else 4
         self.screen.hline(ypos, 0, curses.ascii.SP, self.xmax, attr)
         if status:
@@ -930,7 +900,7 @@ class SpeedPad(InputDecodingMixIn, OutputEncodingMixIn):
             self.screen.addstr(ypos, self.xmax - len(status), status, attr)
 
     def draw_input_sep(self, status=None):
-        attr = self.color_menu
+        attr = self.menucolor
         ypos = self.ymax - 7
         self.screen.hline(ypos, 0, curses.ascii.SP, self.xmax, attr)
         if status:
@@ -938,7 +908,7 @@ class SpeedPad(InputDecodingMixIn, OutputEncodingMixIn):
             self.screen.addstr(ypos, self.xmax - len(status), status, attr)
 
     def draw_footer(self):
-        attr = self.color_menu
+        attr = self.menucolor
         ypos = self.ymax - 1
         self.screen.hline(ypos, 0, curses.ascii.SP, self.xmax, attr)
         self.screen.addstr(ypos, 1, "CTRL-X", attr)
@@ -1214,9 +1184,57 @@ class SpeedPad(InputDecodingMixIn, OutputEncodingMixIn):
             self.speedbox.update(self.player)
 
 
+class SpeedUnit(object):
+
+    def __init__(self, attr):
+        self.attr = attr
+        self.attrgetter = operator.attrgetter(attr)
+
+    def __str__(self):
+        return self.attr.upper()
+
+    def __call__(self, speed):
+        return self.attrgetter(speed)
+
+
+class Speed(float):
+
+    @property
+    def cps(self):
+        """Speed in chars per second (internal base unit)"""
+        return self
+
+    @property
+    def cpm(self):
+        """Speed in chars per minute"""
+        return self.cps * 60.0
+
+    @property
+    def wpm(self):
+        """Speed in words per minute"""
+        return self.cps * 60.0 / 5.0
+
+    @property
+    def ppm(self):
+        """Speed in pages per minute"""
+        return self.cps * 60.0 / 250.0
+
+    @property
+    def cph(self):
+        """Speed in chars per hour (also known as KPH)"""
+        return self.cps * 3600.0
+
+
 class QuoteGeneratorError(Exception): pass
 class QuoteCommandLineError(Exception): pass
 class QuoteFileSourceError(Exception): pass
+
+
+cps = SpeedUnit('cps')
+cpm = SpeedUnit('cpm')
+wpm = SpeedUnit('wpm')
+ppm = SpeedUnit('ppm')
+cph = SpeedUnit('cph')
 
 
 def main(*args, **kwargs):
@@ -1309,27 +1327,29 @@ def main(*args, **kwargs):
             arg = args.filesystem_encoding.encode(arg)[0]
         return arg
 
+    if args.code:
+        args.indent = True
+        args.syntax = True
+        args.no_strip = True
+
+    speedbase = Speed(1.0)
+    if args.cps:
+        speedunit = cps
+        speed = (args.speed or 8.0) / speedunit(speedbase)
+    elif args.cpm:
+        speedunit = cpm
+        speed = (args.speed or 500.0) / speedunit(speedbase)
+    else:
+        speedunit = wpm
+        speed = (args.speed or 100.0) / speedunit(speedbase)
+    if args.no_robot:
+        speed = 0.0
+
     if args.cmd and not args.argv:
         parser.error("missing command line")
     if not args.argv:
         args.cmd = True
         args.argv = ['fortune', '-s', '-n', '500']
-    if args.code:
-        args.indent = True
-        args.no_strip = True
-        args.syntax = True
-    if args.cps:
-        speedunit = 'CPS'
-        speed = args.speed or 8.0
-    elif args.cpm:
-        speedunit = 'CPM'
-        speed = args.speed or 500.0
-    else:
-        speedunit = 'WPM'
-        speed = args.speed or 100.0
-    speedfactor = SPEED_UNITS[speedunit]
-    if args.no_robot:
-        speed = 0.0
     if args.cmd:
         import subprocess
         def factory(maxsize):
@@ -1364,7 +1384,6 @@ def main(*args, **kwargs):
                 color=not args.no_color,
                 user=args.user,
                 speed=speed,
-                speedfactor=speedfactor,
                 speedunit=speedunit,
                 input_encoding=args.input_encoding,
                 output_encoding=args.output_encoding)
