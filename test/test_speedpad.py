@@ -1032,9 +1032,8 @@ class TestSpeedPad(CursesTestCase):
         self.assertEqual(self.instance.robot.pos, 5)
 
     def test_process(self):
-        def process(key, keyboard=True):
-            chars = (key,)
-            self.instance.process(self.quote, chars, keyboard=keyboard)
+        def process(ch, keyboard=True):
+            self.instance.process(self.quote, ch, [ch], keyboard=keyboard)
         def reset(quotelines):
             curses.flushinp()
             self.instance.queue.clear()

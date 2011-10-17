@@ -270,28 +270,41 @@ class InputBox(PadBox):
         self.pad.timeout(0)
 
     def decode_chars(self, chars):
-        """Decode multi-byte character to unicode string"""
-        s = ''.join(chr(ch) for ch in chars)
+        """Decode multi-byte character into unicode string"""
+        s = ''.join(map(chr, chars))
         s = self.decode(s)
         return s
 
     def getch(self):
-        """Get multi-byte character from user"""
-        def next():
-            ch = self.pad.getch()
-            if not 128 <= ch <= 191:
-                raise UnicodeError
-            return ch
+        """Get character from user (possibly multi-byte)
+
+        Return first byte and multi-byte representation.
+        """
         ch = self.pad.getch()
-        if ch <= 127:           # 1 byte
-            return (ch,)
-        elif 194 <= ch <= 223:  # 2 bytes
-            return (ch, next())
-        elif 224 <= ch <= 239:  # 3 bytes
-            return (ch, next(), next())
-        elif 240 <= ch <= 244:  # 4 bytes
-            return (ch, next(), next(), next())
-        return (ch,)
+        chars = [ch]
+        if ch < 0:
+            return ch, chars
+        if self.input_encoding.name == 'utf-8':
+            def next():
+                ch = self.pad.getch()
+                if not 128 <= ch <= 191:
+                    raise UnicodeDecodeError(
+                            "invalid continuation byte: %r" % ch)
+                return ch
+            if ch <= 127:           # 1 byte
+                pass
+            elif 194 <= ch <= 223:  # 2 bytes
+                chars.append(next())
+            elif 224 <= ch <= 239:  # 3 bytes
+                chars.append(next())
+                chars.append(next())
+            elif 240 <= ch <= 244:  # 4 bytes
+                chars.append(next())
+                chars.append(next())
+                chars.append(next())
+            elif 192 <= ch <= 193 or 245 <= ch <= 255:
+                raise UnicodeDecodeError("invalid first byte: %r" % ch)
+        return ch, chars
 
     def putch(self, ch):
         """Add a character and adjust cursor position"""
@@ -559,7 +572,10 @@ class QuoteGenerator(InputDecodingMixIn):
 
     def next(self):
         raw = self.iterator.next()
-        raw = self.decode(raw)
+        try:
+            raw = self.decode(raw)
+        except UnicodeDecodeError as e:
+            raise QuoteGeneratorError(e)
         res = self.clean(raw)
         try:
             quote = Quote(res)
@@ -718,6 +734,11 @@ class SpeedPad(InputDecodingMixIn, OutputEncodingMixIn):
                  input_encoding=None, output_encoding=None):
         self.input_encoding = input_encoding
         self.output_encoding = output_encoding
+        if (self.input_encoding is not None and not
+            self.input_encoding.name == 'utf-8' and
+            self.input_encoding.name.startswith('utf')):
+            raise ValueError("unsupported input encoding: %r" %
+                             self.input_encoding.name)
         self.user = user and self.decode(user)
         self.factory = factory
         self.indent = indent
@@ -998,13 +1019,14 @@ class SpeedPad(InputDecodingMixIn, OutputEncodingMixIn):
                         update_progress = True
 
                     try:
-                        chars = (self.queue.popleft(),)
+                        ch = self.queue.popleft()
+                        chars = [ch]
                         keyboard = False
                     except IndexError:
-                        chars = self.inputbox.getch()
+                        ch, chars = self.inputbox.getch()
                         keyboard = True
 
-                    if chars[0] < 0:
+                    if ch < 0:
                         if update_speed:
                             update_speed = False
                             self.update_player_speed(quote)
@@ -1021,7 +1043,7 @@ class SpeedPad(InputDecodingMixIn, OutputEncodingMixIn):
                         continue
 
                     try:
-                        self.process(quote, chars, writable=writable,
+                        self.process(quote, ch, chars, writable=writable,
                                      keyboard=keyboard)
                     except EOFError:
                         self.queue.clear()
@@ -1059,13 +1081,11 @@ class SpeedPad(InputDecodingMixIn, OutputEncodingMixIn):
             self.update_screen()
             # end quote
 
-    def process(self, quote, chars, writable=True, keyboard=True):
+    def process(self, quote, ch, chars, writable=True, keyboard=True):
         """Process one multi-byte character"""
         ypos, xpos = self.inputbox.pad.getyx()
         # INPUT
-        ch = chars[0]
         if writable and (len(chars) > 1 or curses.ascii.isprint(ch)):
-
             if quote.iscomplete(ypos, xpos):
                 pass # complete with pending typos
             elif quote.iseol(ypos, xpos):
@@ -1077,9 +1097,9 @@ class SpeedPad(InputDecodingMixIn, OutputEncodingMixIn):
                     quote.stats.timer.start()
                 if keyboard and ch == curses.ascii.SP:
                     quote.stats.keystrokes_space += 1
-                s = self.inputbox.decode_chars(chars)
-                if quote.istypo(ypos, xpos, s, record=True,
-                                count=1 if keyboard else 0):
+                if quote.istypo(ypos, xpos,
+                                self.inputbox.decode_chars(chars),
+                                record=True, count=1 if keyboard else 0):
                     self.quotebox.pad.chgat(ypos, xpos, 1, curses.A_REVERSE)
                 else:
                     self.quotebox.pad.chgat(ypos, xpos, 1, curses.A_BOLD)
@@ -1354,39 +1374,45 @@ def main(*args, **kwargs):
         import subprocess
         def factory(maxsize):
             while True:
+                argv = [recode_arg_for_fs(args.argv[0])] + args.argv[1:]
                 try:
-                    argv = [recode_arg_for_fs(args.argv[0])] + args.argv[1:]
                     yield subprocess.check_output(argv)[:maxsize]
-                except Exception as e:
-                    raise QuoteCommandLineError(e)
+                except EnvironmentError as e:
+                    raise QuoteCommandLineError("%s: %r" %
+                                                (e.strerror, argv[0]))
     else:
         def factory(maxsize):
             for fn in args.argv:
+                fn = recode_arg_for_fs(fn)
                 try:
-                    fn = recode_arg_for_fs(fn)
                     with open(fn, 'rb') as fh:
                         yield fh.read(maxsize)
-                except Exception as e:
-                    raise QuoteFileSourceError(e)
+                except EnvironmentError as e:
+                    raise QuoteCommandLineError("%s: %r" %
+                                                (e.strerror, e.filename))
 
     #import pprint
     #pprint.pprint(vars(parser))
     #pprint.pprint(vars(args))
     #sys.exit(0)
 
-    instance = SpeedPad(factory,
-                wrap=args.wrap,
-                strict=args.strict,
-                strip=not args.no_strip,
-                indent=args.indent,
-                syntax=args.syntax,
-                tabsize=args.tabsize,
-                color=not args.no_color,
-                user=args.user,
-                speed=speed,
-                speedunit=speedunit,
-                input_encoding=args.input_encoding,
-                output_encoding=args.output_encoding)
+    try:
+        instance = SpeedPad(factory,
+                            wrap=args.wrap,
+                            strict=args.strict,
+                            strip=not args.no_strip,
+                            indent=args.indent,
+                            syntax=args.syntax,
+                            tabsize=args.tabsize,
+                            color=not args.no_color,
+                            user=args.user,
+                            speed=speed,
+                            speedunit=speedunit,
+                            input_encoding=args.input_encoding,
+                            output_encoding=args.output_encoding)
+    except ValueError as e:
+        sys.stderr.write('error: %s\n' % e)
+        sys.exit(1)
     try:
         curses.wrapper(instance)
     except KeyboardInterrupt:
@@ -1394,7 +1420,7 @@ def main(*args, **kwargs):
     except (QuoteGeneratorError,
             QuoteFileSourceError,
             QuoteCommandLineError) as e:
-        sys.stderr.write('quote source error: %s\n' % e)
+        sys.stderr.write('error: %s\n' % e)
         sys.exit(2)
 
 if __name__ == '__main__':
