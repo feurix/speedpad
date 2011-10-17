@@ -63,19 +63,37 @@ def cph(speed):
     return speed * SPEED_UNITS['CPH']
 
 
-class Box(object):
+class OutputEncodingMixIn(object):
+
+    def encode(self, s):
+        if self.output_encoding is not None:
+            return self.output_encoding.encode(s)[0]
+        return s
+
+
+class InputDecodingMixIn(object):
+
+    def decode(self, s):
+        if self.input_encoding is not None:
+            return self.input_encoding.decode(s)[0]
+        return s
+
+
+class Box(InputDecodingMixIn, OutputEncodingMixIn):
 
     BOX_YMIN = 1
     BOX_XMIN = 1
 
-    def __init__(self, uly, ulx, lry, lrx,
-                 color=curses.A_NORMAL, encoder=None, decoder=None):
+    def __init__(self, uly, ulx, lry, lrx, color=curses.A_NORMAL,
+                 input_encoding=None, output_encoding=None):
         """Instantiate box window
 
         The parameters uly and ulx specify the coordinates of the upper left
         box corner. The parameters lry and lrx specify the coordinates of
         the lower right box corner.
         """
+        self.input_encoding = input_encoding
+        self.output_encoding = output_encoding
         self.uly = uly
         self.ulx = ulx
         self.lry = lry
@@ -83,24 +101,12 @@ class Box(object):
         self.boxlines = lry - uly
         self.boxcols = lrx - ulx
         self.color = color
-        self.encoder = encoder
-        self.decoder = decoder
 
         if self.boxlines < Box.BOX_YMIN or self.boxcols < Box.BOX_XMIN:
             raise ValueError("invalid box size")
 
         self.box = curses.newwin(self.boxlines, self.boxcols, uly, ulx)
         self.box.attron(self.color)
-
-    def encode(self, s):
-        if self.encoder is not None:
-            return self.encoder.encode(s)
-        return s
-
-    def decode(self, s):
-        if self.decoder is not None:
-            return self.decoder.decode(s)
-        return s
 
     def reset(self):
         self.box.erase()
@@ -137,7 +143,7 @@ class PadBox(Box):
     def __init__(self, uly, ulx, lry, lrx,
                  padlines=PAD_YMIN, padcols=PAD_XMIN, soy=0, sox=0,
                  boxcolor=curses.A_NORMAL, padcolor=curses.A_NORMAL,
-                 encoder=None, decoder=None):
+                 input_encoding=None, output_encoding=None):
         """Instantiate pad box
 
         The parameters uly and ulx specify the coordinates of the upper left
@@ -150,9 +156,9 @@ class PadBox(Box):
         The parameters soy and sox specify the amount of lines and columns to
         keep below and behind the cursor while scrolling, respectively.
         """
-        super(PadBox, self).__init__(uly, ulx, lry, lrx,
-                                     encoder=encoder, decoder=decoder,
-                                     color=boxcolor)
+        super(PadBox, self).__init__(uly, ulx, lry, lrx, color=boxcolor,
+                                     input_encoding=input_encoding,
+                                     output_encoding=output_encoding)
         self.padlines = padlines
         self.padcols = padcols
         self.ypos = 0
@@ -259,7 +265,7 @@ class SpeedBox(Box):
             if len(players) > 1:
                 self.box.addstr(ypos, 0, "#%d" % min(9, (ypos + 1)),
                                 curses.A_BOLD)
-            self.box.addstr(ypos, 4, "%8s" % self.encode(player.name[:8]))
+            self.box.addstr(ypos, 4, self.encode(player.name)[:8])
             self.box.addstr(ypos, 13, "%4d %s" % (
                     min(9999, player.speed * factor), unit[:3]))
             player.progressbar.draw(self.box, ypos, 22, color=player.color)
@@ -547,10 +553,11 @@ class Quote(object):
         return not any(self.stats.typos.itervalues())
 
 
-class QuoteGenerator(object):
+class QuoteGenerator(InputDecodingMixIn):
 
     def __init__(self, factory, maxlines, maxcols,
-                 wrap=0, width=0, tabsize=8, strip=True, decoder=None):
+                 wrap=0, width=0, tabsize=8, strip=True, input_encoding=None):
+        self.input_encoding = input_encoding
         if maxlines < 1 or maxcols < 1:
             raise ValueError("invalid size")
         if wrap < 0:
@@ -566,15 +573,9 @@ class QuoteGenerator(object):
         self.maxcols = maxcols
         self.iterator = factory(maxlines * maxcols)
         self.wrapper = textwrap.TextWrapper(width=width)
-        self.decoder = decoder
 
     def __iter__(self):
         return self
-
-    def decode(self, s):
-        if self.decoder is not None:
-            return self.decoder.decode(s)
-        return s
 
     def next(self):
         raw = self.iterator.next()
@@ -722,7 +723,7 @@ class Robot(Player):
         self.pos = 0
 
 
-class SpeedPad(object):
+class SpeedPad(InputDecodingMixIn, OutputEncodingMixIn):
     """Manage all components"""
 
     SCR_XMIN = 70
@@ -735,12 +736,10 @@ class SpeedPad(object):
                  syntax=False, user=None, robot=None, player=None,
                  wrap=0, tabsize=8,
                  speed=0.0, speedfactor=1.0, speedunit='CPS',
-                 input_encoding='utf-8', output_encoding='utf-8'):
-        self.input_decoder = codecs.getincrementaldecoder(input_encoding)
-        self.input_decoder = self.input_decoder(errors='strict')
-        self.output_encoder = codecs.getincrementalencoder(output_encoding)
-        self.output_encoder = self.output_encoder(errors='strict')
-        self.user = user and self.input_decoder.decode(user)
+                 input_encoding=None, output_encoding=None):
+        self.input_encoding = input_encoding
+        self.output_encoding = output_encoding
+        self.user = user and self.decode(user)
         self.factory = factory
         self.indent = indent
         self.strict = strict
@@ -778,18 +777,18 @@ class SpeedPad(object):
         """Initialize screen, boxes, windows and pads"""
         self.speedbox = SpeedBox(2, 0,
                                  4 if self.robot else 3, self.xmax,
-                                 encoder=self.output_encoder)
+                                 output_encoding=self.output_encoding)
         self.quotebox = QuoteBox(6 if self.robot else 5, 0,
                                  SpeedPad.SCR_YMIN - 7, SpeedPad.SCR_XMIN,
                                  SpeedPad.PAD_YMAX, SpeedPad.PAD_XMAX,
                                  2, 10,
-                                 encoder=self.output_encoder)
+                                 output_encoding=self.output_encoding)
         self.inputbox = InputBox(SpeedPad.SCR_YMIN - 6, 0,
                                  SpeedPad.SCR_YMIN - 1, SpeedPad.SCR_XMIN,
                                  SpeedPad.PAD_YMAX, SpeedPad.PAD_XMAX,
                                  0, 10,
-                                 encoder=self.output_encoder,
-                                 decoder=self.input_decoder)
+                                 input_encoding=self.input_encoding,
+                                 output_encoding=self.output_encoding)
 
     def initsignals(self):
         """Initialize and register signal handlers"""
@@ -806,7 +805,7 @@ class SpeedPad(object):
                                        wrap=self.wrap,
                                        tabsize=self.tabsize,
                                        strip=self.strip,
-                                       decoder=self.input_decoder)
+                                       input_encoding=self.input_encoding)
 
     def initplayers(self):
         """Initialize and register players"""
@@ -1264,25 +1263,31 @@ def main(*args, **kwargs):
     parser.add_argument('--no-color', action='store_true',
                        help=("disable colors"
                              " (default: %(default)s)"))
+    parser.add_argument('--code', action='store_true',
+                       help="[--no-strip --indent --syntax]")
     parser.add_argument('--input-encoding', default=io_encoding,
                         help=argparse.SUPPRESS)
     parser.add_argument('--output-encoding', default=io_encoding,
                         help=argparse.SUPPRESS)
     parser.add_argument('--filesystem-encoding', default=fs_encoding,
                         help=argparse.SUPPRESS)
-    parser.add_argument('--code', action='store_true',
-                       help="[--no-strip --indent --syntax]")
     parser.add_argument('argv', nargs='*', metavar='FILE')
 
     args = parser.parse_args(*args, **kwargs)
 
-    for encoding in (args.input_encoding,
-                     args.output_encoding,
-                     args.filesystem_encoding):
-        try:
-            codecs.lookup(encoding)
-        except LookupError as e:
-            parser.error(e)
+    try:
+        args.input_encoding = codecs.lookup(args.input_encoding)
+        args.output_encoding = codecs.lookup(args.output_encoding)
+        args.filesystem_encoding = codecs.lookup(args.filesystem_encoding)
+    except LookupError as e:
+        parser.error(e)
+
+    def recode_arg_for_fs(arg):
+        if args.input_encoding != args.filesystem_encoding:
+            arg = args.input_encoding.decode(arg)[0]
+            arg = args.filesystem_encoding.encode(arg)[0]
+        return arg
+
     if args.cmd and not args.argv:
         parser.error("missing command line")
     if not args.argv:
@@ -1309,16 +1314,15 @@ def main(*args, **kwargs):
         def factory(maxsize):
             while True:
                 try:
-                    yield subprocess.check_output(args.argv)[:maxsize]
+                    argv = [recode_arg_for_fs(args.argv[0])] + args.argv[1:]
+                    yield subprocess.check_output(argv)[:maxsize]
                 except Exception as e:
                     raise QuoteCommandLineError(e)
     else:
         def factory(maxsize):
             for fn in args.argv:
                 try:
-                    if args.input_encoding != args.filesystem_encoding:
-                        fn = fn.decode(args.input_encoding)
-                        fn = fn.encode(args.filesystem_encoding)
+                    fn = recode_arg_for_fs(fn)
                     with open(fn, 'rb') as fh:
                         yield fh.read(maxsize)
                 except Exception as e:
