@@ -1044,6 +1044,7 @@ class TestSpeedPad(CursesTestCase):
             self.instance.speedbox.load(self.quote)
             self.instance.quotebox.load(self.quote)
             self.instance.active = False
+            self.instance.writable = True
         reset(["1"])
         self.assertFalse(self.instance.active)
         process(ord(' '))
@@ -1097,10 +1098,11 @@ class TestSpeedPad(CursesTestCase):
         self.assertEqual(list(self.instance.queue), [curses.ascii.EOT])
         self.assertRaises(speedpad.QuoteStopSignal, process, curses.ascii.EOT)
         self.instance.active = False
+        self.instance.writable = False
         self.assertTrue(self.quote.stats.timer.stopped)
         # no increment after completion
-        process(curses.ascii.SP, writable=False)
-        process(curses.ascii.TAB, writable=False)
+        process(curses.ascii.SP)
+        process(curses.ascii.TAB)
         self.instance.active = True
         process(curses.ascii.NL)
         self.assertEqual(self.quote.stats.keystrokes_tab, 0)

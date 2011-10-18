@@ -756,6 +756,7 @@ class SpeedPad(InputDecodingMixIn, OutputEncodingMixIn):
         self.color = color
         self.menucolor = curses.A_REVERSE
         self.active = False
+        self.writable = True
         self.dumbtty = True
         self.cursor = True
         self.queue = collections.deque()
@@ -1004,13 +1005,14 @@ class SpeedPad(InputDecodingMixIn, OutputEncodingMixIn):
                 self.quotebox.load(quote)
                 self.show_cursor()
                 self.update_screen(quote)
+                self.active = False
+                self.writable = True
                 update_iteration_screen = 0
                 update_iteration_speed = 0
                 update_iteration_progress = 0
                 update_screen = False
                 update_speed = False
                 update_progress = False
-                writable = True
                 restart = False
                 while True:             # next keypress
                     if update_iteration_screen == update_iterations_screen:
@@ -1048,22 +1050,20 @@ class SpeedPad(InputDecodingMixIn, OutputEncodingMixIn):
                         continue
 
                     try:
-                        self.process(quote, ch, chars,
-                                     writable=writable,
-                                     keyboard=keyboard)
+                        self.process(quote, ch, chars, keyboard=keyboard)
                     except QuoteStopSignal:
                         self.active = False
                         self.queue.clear()
-                        if writable:
+                        if self.writable:
                             self.start_pager(quote)
-                            writable = False
+                            self.writable = False
                         else:
                             self.stop_pager()
                             break
                     except QuoteResetSignal:
                         self.active = False
                         self.queue.clear()
-                        if not writable:
+                        if not self.writable:
                             self.stop_pager()
                         restart = True
                         break
@@ -1091,11 +1091,11 @@ class SpeedPad(InputDecodingMixIn, OutputEncodingMixIn):
             self.update_screen()
             # end quote
 
-    def process(self, quote, ch, chars, writable=True, keyboard=True):
+    def process(self, quote, ch, chars, keyboard=True):
         """Process one multi-byte character"""
         ypos, xpos = self.inputbox.pad.getyx()
         # INPUT
-        if writable and (len(chars) > 1 or curses.ascii.isprint(ch)):
+        if self.writable and (len(chars) > 1 or curses.ascii.isprint(ch)):
             if quote.iscomplete(ypos, xpos):
                 pass # complete with pending typos
             elif quote.iseol(ypos, xpos):
@@ -1118,8 +1118,10 @@ class SpeedPad(InputDecodingMixIn, OutputEncodingMixIn):
                     self.queue.append(curses.ascii.EOT)
                 for ch in chars:
                     self.inputbox.putch(ch)
-        elif (writable and ch in (curses.ascii.BS, curses.ascii.DEL,
-                                  curses.KEY_BACKSPACE)):
+        elif (self.writable and
+              ch in (curses.ascii.BS,
+                     curses.ascii.DEL,
+                     curses.KEY_BACKSPACE)):
             quote.stats.fixtypo(ypos, xpos, count=0)
             self.inputbox.putch(ch)
             newy, newx = self.inputbox.pad.getyx()
@@ -1127,7 +1129,7 @@ class SpeedPad(InputDecodingMixIn, OutputEncodingMixIn):
                 self.quotebox.pad.chgat(newy, newx, -1, curses.A_NORMAL)
             elif newx != xpos:
                 self.quotebox.pad.chgat(ypos, newx, -1, curses.A_NORMAL)
-        elif ch == curses.ascii.TAB and writable:
+        elif ch == curses.ascii.TAB and self.writable:
             if keyboard:
                 quote.stats.keystrokes_tab += 1
             if self.tabsize:
@@ -1142,7 +1144,7 @@ class SpeedPad(InputDecodingMixIn, OutputEncodingMixIn):
         elif ch == curses.ascii.NL:
             if not self.active:
                 raise QuoteBreakSignal
-            if (writable and
+            if (self.writable and
                 quote.iseol(ypos, xpos) and not
                 quote.iscomplete(ypos, xpos)):
                 if keyboard:
@@ -1189,7 +1191,7 @@ class SpeedPad(InputDecodingMixIn, OutputEncodingMixIn):
         elif ch == curses.KEY_RIGHT:
             self.quotebox.scroll(0, 1)
 
-        if not writable: return
+        if not self.writable: return
 
         # AUTO SCROLLING
         newy, newx = self.inputbox.pad.getyx()
