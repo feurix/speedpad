@@ -335,7 +335,9 @@ class InputBox(PadBox):
         lead = self.extract(oldypos, oldsol, 2)
         trail = self.extract(oldypos, max(0, oldeol - 2), 2)
         if lead == '*/':
-            return [curses.ascii.BS] if oldsol > 0 else []
+            if oldsol > 0 and neweol > 0:
+                return [curses.ascii.BS]
+            return []
         if lead == '/*':
             if trail == '*/':
                 return []
@@ -1151,10 +1153,10 @@ class SpeedPad(InputDecodingMixIn, OutputEncodingMixIn):
                     quote.stats.keystrokes_enter += 1
                 self.inputbox.putch(ch)
                 newy, newx = self.inputbox.pad.getyx()
-                if newy > 0 and newx == 0:
-                    oldsol = self.inputbox.sol(ypos)
-                    oldeol = quote.eol(ypos)
-                    neweol = quote.eol(newy)
+                oldsol = self.inputbox.sol(ypos)
+                oldeol = quote.eol(ypos)
+                neweol = quote.eol(newy)
+                if neweol > 0 and neweol > oldsol and newy > 0 and newx == 0:
                     if self.indent and oldsol > 0:
                         spacegen = itertools.repeat(curses.ascii.SP, oldsol)
                         self.queue.extend(spacegen)

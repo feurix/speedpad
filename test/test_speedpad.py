@@ -986,6 +986,26 @@ class TestInputBox(CursesTestCase):
         continuation = self.box.continue_comment(0, 0, len(s), len(s))
         self.assertFalse(continuation)
 
+        # end of c comment at start of line
+        s = "*/"
+        self.box.reset()
+        self.putstr(s)
+        continuation = self.box.continue_comment(0, 0, len(s), len(s))
+        self.assertFalse(continuation)
+        # end of c comment not at start of line
+        s = " */"
+        self.box.reset()
+        self.putstr(s)
+        continuation = self.box.continue_comment(0, 1, len(s), len(s))
+        self.assertTrue(continuation)
+        self.assertEqual(continuation, [curses.ascii.BS])
+        # end of c comment not at start of line with empty next line
+        s = " */"
+        self.box.reset()
+        self.putstr(s)
+        continuation = self.box.continue_comment(0, 1, len(s), 0)
+        self.assertFalse(continuation)
+
     def putstr(self, s):
         # make sure we include the box.putch logic
         for ch in str2ord(s):
@@ -1249,6 +1269,15 @@ class TestSpeedPad(CursesTestCase):
         self.assertEqual(self.instance.player.pos, 3)
         self.assertTrue(self.instance.queue)
         self.assertEqual(list(self.instance.queue), str2ord("  "))
+        # no auto indent if next line too short
+        reset(["  x",
+               " y"])
+        for c in "  x": process(ord(c))
+        self.assertEqual(self.instance.player.pos, 3)
+        self.instance.indent = True
+        process(curses.ascii.NL)
+        self.assertEqual(self.instance.player.pos, 3)
+        self.assertFalse(self.instance.queue)
         # comment continuation
         reset(["#",
                "#"])
@@ -1312,15 +1341,112 @@ class TestSpeedPad(CursesTestCase):
         self.assertEqual(self.instance.player.pos, 8)
         self.assertTrue(self.instance.queue)
         self.assertEqual(list(self.instance.queue), str2ord("  #    "))
-        # restart
+        for c in self.instance.queue: process(c, keyboard=False)
+        self.assertEqual(self.instance.player.pos, 15)
+        # c-comment continuation without leading space
+        def process_c_comment_until_end_of_comment(lines):
+            reset(lines)
+            self.instance.active = True
+            self.instance.indent = True
+            self.instance.syntax = True
+            for c in "/**": process(ord(c))
+            self.assertEqual(self.instance.player.pos, 3)
+            process(curses.ascii.NL)
+            self.assertEqual(self.instance.player.pos, 3)
+            self.assertTrue(self.instance.queue)
+            self.assertEqual(list(self.instance.queue), str2ord(" *"))
+            for c in self.instance.queue: process(c, keyboard=False)
+            self.instance.queue.clear()
+            self.assertEqual(self.instance.player.pos, 5)
+            for c in " foo": process(ord(c))
+            self.assertEqual(self.instance.player.pos, 9)
+            process(curses.ascii.NL)
+            self.assertEqual(self.instance.player.pos, 9)
+            self.assertTrue(self.instance.queue)
+            self.assertEqual(list(self.instance.queue), str2ord(" * "))
+            for c in self.instance.queue: process(c, keyboard=False)
+            self.assertEqual(self.instance.player.pos, 12)
+            self.instance.queue.clear()
+            for c in "bar": process(ord(c))
+            self.assertEqual(self.instance.player.pos, 15)
+            process(curses.ascii.NL)
+            self.assertEqual(self.instance.player.pos, 15)
+            self.assertTrue(self.instance.queue)
+            self.assertEqual(list(self.instance.queue), str2ord(" * "))
+            for c in self.instance.queue: process(c, keyboard=False)
+            self.assertEqual(self.instance.player.pos, 18)
+            self.instance.queue.clear()
+            process(curses.ascii.BS)
+            self.assertEqual(self.instance.player.pos, 17)
+            process(ord('/'))
+            self.assertEqual(self.instance.player.pos, 18)
+            self.assertFalse(self.instance.queue)
+        process_c_comment_until_end_of_comment([
+                "/**",
+                " * foo",
+                " * bar",
+                " */", # <- processing stops here
+                " x"]) # <- next line eol > indent
+        process(curses.ascii.NL)
+        self.assertEqual(self.instance.player.pos, 18)
+        self.assertTrue(self.instance.queue)
+        # (space comes from auto-indentation,
+        # backspace from comment continuation)
+        self.assertEqual(list(self.instance.queue),
+                         [curses.ascii.SP, curses.ascii.BS])
+        process_c_comment_until_end_of_comment([
+                "/**",
+                " * foo",
+                " * bar",
+                " */", # <- processing stops here
+                "x"])  # <- next line eol <= indent
+        process(curses.ascii.NL)
+        self.assertEqual(self.instance.player.pos, 18)
+        self.assertFalse(self.instance.queue)
+        # (space comes from auto-indentation,
+        # backspace from comment continuation)
+        process_c_comment_until_end_of_comment([
+                "/**",
+                " * foo",
+                " * bar",
+                " */", # <- processing stops here
+                ""])   # <- next line eol == 0
+        process(curses.ascii.NL)
+        self.assertEqual(self.instance.player.pos, 18)
+        self.assertFalse(self.instance.queue)
+        # restart if active
+        reset(["foo bar"])
+        self.instance.active = True
+        self.instance.writable = True
+        self.assertRaises(speedpad.QuoteResetSignal,
+                          process, curses.ascii.CAN)
+        # restart if inactive
+        reset(["foo bar"])
+        self.instance.active = False
+        self.instance.writable = True
+        self.assertRaises(speedpad.QuoteResetSignal,
+                          process, curses.ascii.CAN)
+        # restart if pager
+        reset(["foo bar"])
+        self.instance.active = False
+        self.instance.writable = False
         self.assertRaises(speedpad.QuoteResetSignal,
                           process, curses.ascii.CAN)
         # stop if active
-        self.instance.active = True
+        reset(["foo bar"])
+        process(ord('x')) # set flags and start timer
         self.assertRaises(speedpad.QuoteStopSignal,
                           process, curses.ascii.EOT)
         # next if inactive
+        reset(["foo bar"])
         self.instance.active = False
+        self.instance.writable = True
+        self.assertRaises(speedpad.QuoteBreakSignal,
+                          process, curses.ascii.EOT)
+        # next if pager
+        reset(["foo bar"])
+        self.instance.active = False
+        self.instance.writable = False
         self.assertRaises(speedpad.QuoteBreakSignal,
                           process, curses.ascii.EOT)
 
