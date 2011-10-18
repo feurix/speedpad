@@ -827,11 +827,11 @@ class SpeedPad(InputDecodingMixIn, OutputEncodingMixIn):
         if not self.color:
             return
         curses.init_pair(1, curses.COLOR_WHITE, curses.COLOR_BLUE)
-        curses.init_pair(2, curses.COLOR_YELLOW, -1)
+        curses.init_pair(2, curses.COLOR_WHITE, -1)
         self.menucolor = curses.color_pair(1)
         self.player.color = curses.color_pair(2)
         if self.robot:
-            curses.init_pair(3, curses.COLOR_CYAN, -1)
+            curses.init_pair(3, curses.COLOR_RED, -1)
             self.robot.color = curses.color_pair(3)
 
     def getsize(self):
