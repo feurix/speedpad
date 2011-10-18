@@ -380,6 +380,7 @@ class InputBox(PadBox):
             for ypos, unit in enumerate((cpm, wpm, ppm, cph), 1):
                 self.pad.addstr(ypos, xpos, "%13.3f %s" %
                                 (format(unit(player.speed)), unit))
+
         xpos = 19
         format = lambda keystrokes: min(10 ** 4 - 1, keystrokes)
         self.pad.addstr(0, xpos, "Keystrokes: %4d (enter)" %
@@ -391,10 +392,14 @@ class InputBox(PadBox):
         good = float(quote.stats.keystrokes_good)
         typo = float(quote.stats.keystrokes_typo)
         total = float(good + typo)
-        self.pad.addstr(2, xpos, "%16d (good: %d%%)" %
-                        (format(good), round(good / total * 100)))
-        self.pad.addstr(3, xpos, "%16d (typo: %d%%)" %
-                        (format(typo), round(typo / total * 100)))
+        if total:
+            self.pad.addstr(2, xpos, "%16d (good: %d%%)" %
+                            (format(good), round(good / total * 100)))
+            self.pad.addstr(3, xpos, "%16d (typo: %d%%)" %
+                            (format(typo), round(typo / total * 100)))
+        else:
+            self.pad.addstr(2, xpos, "%16d (good)" % format(good))
+            self.pad.addstr(3, xpos, "%16d (typo)" % format(typo))
         self.pad.addstr(4, xpos, "%16d (total)" % format(total))
 
         xpos = min(72, self.boxcols) - 23
