@@ -912,7 +912,7 @@ class SpeedPad(InputDecodingMixIn, OutputEncodingMixIn):
         attr = self.menucolor
         ypos = 0
         self.screen.hline(ypos, 0, curses.ascii.SP, self.xmax, attr)
-        self.screen.addstr(ypos, 0, "speedpad version %s" % __version__, attr)
+        self.screen.addstr(ypos, 0, "speedpad %s" % __version__, attr)
         if status:
             status = status[:self.xmax - 30]
             self.screen.addstr(ypos, self.xmax - len(status), status, attr)
@@ -1301,6 +1301,8 @@ def main(*args, **kwargs):
             usage="%(prog)s [options] [--] [FILE [FILE ...]]\n "
             "  or: %(prog)s [...]  -c [--] [CMD [ARG ...]]\n"
             )
+    parser.add_argument('--version', action='version',
+                        version='%%(prog)s %s' % __version__)
     parser.add_argument('--cmd', '-c', action='store_true',
                        help=("use positional arguments as command line"
                              " (default: %(default)s)"))
