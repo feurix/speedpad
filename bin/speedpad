@@ -1262,20 +1262,21 @@ def main(*args, **kwargs):
     if sys.hexversion < 0x020700F0:
         sys.stderr.write("Require Python 2.7 or later!\n")
         sys.exit(1)
-
+    import argparse
+    import getpass
     import locale
+    import os
+
     locale.setlocale(locale.LC_ALL, '')
     io_encoding = locale.getpreferredencoding()
     fs_encoding = sys.getfilesystemencoding()
 
     try:
-        import getpass
         # LOGNAME, USER, LNAME, USERNAME, pw_name
         user = getpass.getuser().lstrip().split(None, 1)[0].lower()
     except:
         user = None
 
-    import argparse
     parser = argparse.ArgumentParser(
             formatter_class=argparse.RawTextHelpFormatter)
     parser.add_argument('--cmd', '-c', action='store_true',
