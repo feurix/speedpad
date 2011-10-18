@@ -1297,7 +1297,10 @@ def main(*args, **kwargs):
         user = None
 
     parser = argparse.ArgumentParser(
-            formatter_class=argparse.RawTextHelpFormatter)
+            formatter_class=argparse.RawTextHelpFormatter,
+            usage="%(prog)s [options] [--] [FILE [FILE ...]]\n "
+            "  or: %(prog)s [...]  -c [--] [CMD [ARG ...]]\n"
+            )
     parser.add_argument('--cmd', '-c', action='store_true',
                        help=("use positional arguments as command line"
                              " (default: %(default)s)"))
@@ -1350,7 +1353,7 @@ def main(*args, **kwargs):
                         help=argparse.SUPPRESS)
     parser.add_argument('--filesystem-encoding', default=fs_encoding,
                         help=argparse.SUPPRESS)
-    parser.add_argument('argv', nargs='*', metavar='FILE')
+    parser.add_argument('argv', nargs='*', help=argparse.SUPPRESS)
 
     args = parser.parse_args(*args, **kwargs)
 
