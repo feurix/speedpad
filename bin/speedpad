@@ -369,19 +369,20 @@ class InputBox(PadBox):
         return continuation
 
     def draw_stats(self, quote, player):
-        xpos = 0
-        if quote.stats.timer.elapsed < 1.0:
-            self.pad.addstr(0, xpos, "Speed: unknown")
-        else:
-            format = lambda speed: min(10 ** (6 - 1 - 3) - 10 ** -3, speed)
-            self.pad.addstr(0, xpos, "Speed: %6.3f %s" %
-                            (format(cps(player.speed)), cps))
-            format = lambda speed: min(10 ** (13 - 1 - 3) - 10 ** -3, speed)
-            for ypos, unit in enumerate((cpm, wpm, ppm, cph), 1):
-                self.pad.addstr(ypos, xpos, "%13.3f %s" %
-                                (format(unit(player.speed)), unit))
+        good = float(quote.stats.keystrokes_good)
+        typo = float(quote.stats.keystrokes_typo)
+        total = float(good + typo)
+        if not total: return
 
-        xpos = 19
+        xpos = 0
+        format = lambda speed: min(10 ** (6 - 1 - 3) - 10 ** -3, speed)
+        self.pad.addstr(0, xpos, "Speed: %6.3f %s" %
+                        (format(cps(player.speed)), cps))
+        format = lambda speed: min(10 ** (13 - 1 - 3) - 10 ** -3, speed)
+        for ypos, unit in enumerate((cpm, wpm, ppm, cph), 1):
+            self.pad.addstr(ypos, xpos, "%13.3f %s" %
+                            (format(unit(player.speed)), unit))
+        xpos += 19
         format = lambda keystrokes: min(10 ** 4 - 1, keystrokes)
         self.pad.addstr(0, xpos, "Keystrokes: %4d (enter)" %
                         format(quote.stats.keystrokes_enter))
@@ -389,33 +390,30 @@ class InputBox(PadBox):
         self.pad.addstr(1, xpos, "%16d (tab/space)" %
                         format(quote.stats.keystrokes_tab +
                                quote.stats.keystrokes_space))
-        good = float(quote.stats.keystrokes_good)
-        typo = float(quote.stats.keystrokes_typo)
-        total = float(good + typo)
-        if total:
-            self.pad.addstr(2, xpos, "%16d (good: %d%%)" %
-                            (format(good), round(good / total * 100)))
-            self.pad.addstr(3, xpos, "%16d (typo: %d%%)" %
-                            (format(typo), round(typo / total * 100)))
-        else:
-            self.pad.addstr(2, xpos, "%16d (good)" % format(good))
-            self.pad.addstr(3, xpos, "%16d (typo)" % format(typo))
+        self.pad.addstr(2, xpos, "%16d (good: %d%%)" %
+                        (format(good), round(good / total * 100)))
+        self.pad.addstr(3, xpos, "%16d (typo: %d%%)" %
+                        (format(typo), round(typo / total * 100)))
         self.pad.addstr(4, xpos, "%16d (total)" % format(total))
-
-        xpos = min(72, self.boxcols) - 23
-        highscore = quote.stats.typo_highscore[:5]
-        self.pad.addstr(0, xpos, "Top 5 typos:")
-        self.pad.addstr(1, xpos, "  [x] 54321 ")
-        self.pad.addstr(2, xpos, "   |  |     ")
-        self.pad.addstr(3, xpos, "   |  typos ")
-        self.pad.addstr(4, xpos, "   expected ")
-        xpos += 13
-        for ypos, score in enumerate(highscore):
-            expected, typos = score
-            typos = ''.join(typo for typo, count in typos)
-            self.pad.addstr(ypos, xpos, "[%s] %s" %
-                            (self.encode(expected[:1]),
-                             self.encode(typos[:5])))
+        if typo:
+            xmax = min(SpeedPad.SCR_XMIN + 4, self.boxcols)
+            xpos = xmax - 25
+            highscore = quote.stats.typo_highscore[:5]
+            self.pad.addstr(0, xpos, "Typo Highscore:")
+            xpos += 5
+            self.pad.addstr(1, xpos, "[1] [321]")
+            self.pad.addstr(2, xpos, "[2]  ||| ")
+            self.pad.addstr(3, xpos, " |  typos")
+            self.pad.addstr(4, xpos, " expected")
+            xpos += 11
+            places = min(79, self.boxcols) - xpos - 6
+            expand = lambda typos: typos[:places].ljust(places)
+            for ypos, score in enumerate(highscore):
+                expected, typos = score
+                typos = ''.join(typo for typo, count in typos)
+                self.pad.addstr(ypos, xpos, "[%s] [%s]" %
+                                (self.encode(expected[:1]),
+                                 self.encode(expand(typos))))
 
 
 class InputStats(object):
