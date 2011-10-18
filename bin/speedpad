@@ -888,6 +888,7 @@ class SpeedPad(InputDecodingMixIn, OutputEncodingMixIn):
             seconds = int(quote.stats.timer.elapsed)
             elapsed = str(datetime.timedelta(seconds=seconds))
             self.draw_header(status=elapsed)
+        self.draw_input_sep()
         self.draw_footer()
         self.speedbox.draw(self.speedunit)
         self.screen.noutrefresh()
@@ -915,35 +916,36 @@ class SpeedPad(InputDecodingMixIn, OutputEncodingMixIn):
             status = status[:self.xmax - 30]
             self.screen.addstr(ypos, self.xmax - len(status), status, attr)
 
-    def draw_quote_sep(self, status=None):
+    def draw_quote_sep(self):
         attr = self.menucolor
         ypos = 5 if self.robot else 4
         self.screen.hline(ypos, 0, curses.ascii.SP, self.xmax, attr)
-        if status:
-            status = status[:self.xmax - 30]
-            self.screen.addstr(ypos, self.xmax - len(status), status, attr)
 
-    def draw_input_sep(self, status=None):
+    def draw_input_sep(self):
         attr = self.menucolor
         ypos = self.ymax - 7
         self.screen.hline(ypos, 0, curses.ascii.SP, self.xmax, attr)
-        if status:
-            status = status[:self.xmax - 30]
-            self.screen.addstr(ypos, self.xmax - len(status), status, attr)
+        if self.active:
+            self.screen.addstr(ypos, self.xmax - 11, "CTRL-D", attr)
+            self.screen.addstr(ypos, self.xmax - 4, "STOP",
+                               attr | curses.A_BOLD)
+        else:
+            self.screen.addstr(ypos, self.xmax - 10, "ENTER", attr)
+            self.screen.addstr(ypos, self.xmax - 4, "NEXT",
+                               attr | curses.A_BOLD)
 
     def draw_footer(self):
         attr = self.menucolor
         ypos = self.ymax - 1
         self.screen.hline(ypos, 0, curses.ascii.SP, self.xmax, attr)
-        self.screen.addstr(ypos, 1, "CTRL-X", attr)
-        self.screen.addstr(ypos, 1 + 7, "RESET", attr | curses.A_BOLD)
-        self.screen.addstr(ypos, 20, "CTRL-D", attr)
-        self.screen.addstr(ypos, 20 + 7, "STOP" if self.active else "NEXT",
+        self.screen.addstr(ypos, 0, "CTRL-X", attr)
+        self.screen.addstr(ypos, 0 + 7, "RESET", attr | curses.A_BOLD)
+        self.screen.addstr(ypos, self.xmax - 11, "CTRL-C", attr)
+        self.screen.insstr(ypos, self.xmax - 4, "QUIT",
                            attr | curses.A_BOLD)
-        self.screen.addstr(ypos, self.xmax - 12, "CTRL-C", attr)
-        self.screen.addstr(ypos, self.xmax - 5, "QUIT", attr | curses.A_BOLD)
 
     def start_pager(self, quote):
+        self.hide_cursor()
         self.quotebox.reset()
         self.inputbox.reset()
         self.update_player_speed(quote)
@@ -1050,21 +1052,23 @@ class SpeedPad(InputDecodingMixIn, OutputEncodingMixIn):
                                      writable=writable,
                                      keyboard=keyboard)
                     except QuoteStopSignal:
+                        self.active = False
                         self.queue.clear()
                         if writable:
-                            self.hide_cursor()
                             self.start_pager(quote)
                             writable = False
                         else:
                             self.stop_pager()
                             break
                     except QuoteResetSignal:
+                        self.active = False
                         self.queue.clear()
                         if not writable:
                             self.stop_pager()
                         restart = True
                         break
                     except QuoteBreakSignal:
+                        self.active = False
                         break
 
                     if update_speed:
@@ -1162,11 +1166,9 @@ class SpeedPad(InputDecodingMixIn, OutputEncodingMixIn):
             pass
         elif ch == curses.ascii.EOT:
             if self.active:
-                if (quote.stats.timer.started and not
-                    quote.stats.timer.stopped):
-                    quote.stats.timer.stop()
-                self.active = False
-            raise QuoteStopSignal
+                quote.stats.timer.stop()
+                raise QuoteStopSignal
+            raise QuoteBreakSignal
         elif ch == curses.ascii.CAN:
             raise QuoteResetSignal
         # SCROLLING
