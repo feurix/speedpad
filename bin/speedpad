@@ -1048,9 +1048,10 @@ class SpeedPad(InputDecodingMixIn, OutputEncodingMixIn):
                         continue
 
                     try:
-                        self.process(quote, ch, chars, writable=writable,
+                        self.process(quote, ch, chars,
+                                     writable=writable,
                                      keyboard=keyboard)
-                    except EOFError:
+                    except QuoteStopSignal:
                         self.queue.clear()
                         if writable:
                             self.hide_cursor()
@@ -1059,11 +1060,13 @@ class SpeedPad(InputDecodingMixIn, OutputEncodingMixIn):
                         else:
                             self.stop_pager()
                             break
-                    except StopIteration:
+                    except QuoteResetSignal:
                         self.queue.clear()
                         if not writable:
                             self.stop_pager()
                         restart = True
+                        break
+                    except QuoteBreakSignal:
                         break
 
                     if update_speed:
@@ -1097,7 +1100,7 @@ class SpeedPad(InputDecodingMixIn, OutputEncodingMixIn):
                 if not self.strict and ch == curses.ascii.SP:
                     self.queue.append(curses.ascii.NL)
             else:
-                if not quote.stats.timer.started:
+                if not self.active:
                     self.active = True
                     quote.stats.timer.start()
                 if keyboard and ch == curses.ascii.SP:
@@ -1123,7 +1126,7 @@ class SpeedPad(InputDecodingMixIn, OutputEncodingMixIn):
             elif newx != xpos:
                 self.quotebox.pad.chgat(ypos, newx, -1, curses.A_NORMAL)
         elif ch == curses.ascii.TAB and writable:
-            if keyboard and self.active:
+            if keyboard:
                 quote.stats.keystrokes_tab += 1
             if self.tabsize:
                 indent = self.tabsize - xpos % self.tabsize
@@ -1134,8 +1137,12 @@ class SpeedPad(InputDecodingMixIn, OutputEncodingMixIn):
                     self.queue.extend(spacegen)
                 if not self.strict and indent > remaining:
                     self.queue.append(curses.ascii.NL)
-        elif ch == curses.ascii.NL and writable:
-            if quote.iseol(ypos, xpos) and not quote.iscomplete(ypos, xpos):
+        elif ch == curses.ascii.NL:
+            if not self.active:
+                raise QuoteBreakSignal
+            if (writable and
+                quote.iseol(ypos, xpos) and not
+                quote.iscomplete(ypos, xpos)):
                 if keyboard:
                     quote.stats.keystrokes_enter += 1
                 self.inputbox.putch(ch)
@@ -1156,12 +1163,14 @@ class SpeedPad(InputDecodingMixIn, OutputEncodingMixIn):
         elif ch == curses.ascii.FF:
             pass
         elif ch == curses.ascii.EOT:
-            if quote.stats.timer.started and not quote.stats.timer.stopped:
-                quote.stats.timer.stop()
+            if self.active:
+                if (quote.stats.timer.started and not
+                    quote.stats.timer.stopped):
+                    quote.stats.timer.stop()
                 self.active = False
-            raise EOFError
+            raise QuoteStopSignal
         elif ch == curses.ascii.CAN:
-            raise StopIteration
+            raise QuoteResetSignal
         # SCROLLING
         elif ch == curses.KEY_HOME or ch == curses.ascii.SOH:
             self.quotebox.ypos = 0
@@ -1250,6 +1259,9 @@ class Speed(float):
         return self.cps * 3600.0
 
 
+class QuoteStopSignal(Exception): pass
+class QuoteBreakSignal(Exception): pass
+class QuoteResetSignal(Exception): pass
 class QuoteGeneratorError(Exception): pass
 class QuoteCommandLineError(Exception): pass
 class QuoteFileSourceError(Exception): pass
