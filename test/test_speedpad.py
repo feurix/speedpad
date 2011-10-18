@@ -1032,8 +1032,8 @@ class TestSpeedPad(CursesTestCase):
         self.assertEqual(self.instance.robot.pos, 5)
 
     def test_process(self):
-        def process(ch, keyboard=True):
-            self.instance.process(self.quote, ch, [ch], keyboard=keyboard)
+        def process(ch, **kwargs):
+            self.instance.process(self.quote, ch, [ch], **kwargs)
         def reset(quotelines):
             curses.flushinp()
             self.instance.queue.clear()
@@ -1043,8 +1043,11 @@ class TestSpeedPad(CursesTestCase):
             self.instance.inputbox.reset()
             self.instance.speedbox.load(self.quote)
             self.instance.quotebox.load(self.quote)
+            self.instance.active = False
         reset(["1"])
+        self.assertFalse(self.instance.active)
         process(ord(' '))
+        self.assertTrue(self.instance.active)
         self.assertEqual(self.instance.player.pos, 1)
         self.assertTrue(self.quote.stats.timer.started)
         self.assertTrue(self.quote.stats.typos)
@@ -1071,7 +1074,9 @@ class TestSpeedPad(CursesTestCase):
         self.assertFalse(self.quote.stats.typos[0, 0])
         self.assertEqual(self.quote.stats.keystrokes_typo, 1)
         self.assertEqual(self.quote.stats.keystrokes_good, 1)
+        self.assertTrue(self.instance.active)
         reset(["12"])
+        self.assertFalse(self.instance.active)
         process(ord('1'))
         self.assertEqual(self.instance.player.pos, 1)
         self.assertFalse(self.quote.stats.typos)
@@ -1086,18 +1091,24 @@ class TestSpeedPad(CursesTestCase):
         self.assertEqual(self.quote.stats.keystrokes_good, 2)
         self.assertTrue(self.quote.iscomplete(0, 2))
         self.assertTrue(self.quote.iscorrect())
+        self.assertTrue(self.instance.active)
         # auto eof after completion
         self.assertTrue(self.instance.queue)
         self.assertEqual(list(self.instance.queue), [curses.ascii.EOT])
-        self.assertRaises(EOFError, process, curses.ascii.EOT)
+        self.assertRaises(speedpad.QuoteStopSignal, process, curses.ascii.EOT)
+        self.instance.active = False
         self.assertTrue(self.quote.stats.timer.stopped)
         # no increment after completion
-        process(curses.ascii.SP)
-        process(curses.ascii.TAB)
+        process(curses.ascii.SP, writable=False)
+        process(curses.ascii.TAB, writable=False)
+        self.instance.active = True
         process(curses.ascii.NL)
         self.assertEqual(self.quote.stats.keystrokes_tab, 0)
         self.assertEqual(self.quote.stats.keystrokes_space, 0)
         self.assertEqual(self.quote.stats.keystrokes_enter, 0)
+        self.instance.active = False
+        self.assertRaises(speedpad.QuoteBreakSignal,
+                          process, curses.ascii.NL)
         reset(["foo     bar",
                "baz"])
         for c in "foo": process(ord(c))
@@ -1300,7 +1311,16 @@ class TestSpeedPad(CursesTestCase):
         self.assertTrue(self.instance.queue)
         self.assertEqual(list(self.instance.queue), str2ord("  #    "))
         # restart
-        self.assertRaises(StopIteration, process, curses.ascii.CAN)
+        self.assertRaises(speedpad.QuoteResetSignal,
+                          process, curses.ascii.CAN)
+        # stop if active
+        self.instance.active = True
+        self.assertRaises(speedpad.QuoteStopSignal,
+                          process, curses.ascii.EOT)
+        # next if inactive
+        self.instance.active = False
+        self.assertRaises(speedpad.QuoteBreakSignal,
+                          process, curses.ascii.EOT)
 
 
 def str2ord(s):
