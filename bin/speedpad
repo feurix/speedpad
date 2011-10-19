@@ -170,8 +170,10 @@ class PadBox(Box):
         self.xmax = max(0, self.boxcols - self.sox)
 
     def scroll(self, ydiff, xdiff):
-        self.ypos = min(self.padlines, max(0, self.ypos + ydiff))
-        self.xpos = min(self.padcols, max(0, self.xpos + xdiff))
+        self.ypos = min(self.padlines - self.boxlines,
+                        max(0, self.ypos + ydiff))
+        self.xpos = min(self.padcols - self.boxcols,
+                        max(0, self.xpos + xdiff))
 
     def extract(self, ypos, xpos, n=1):
         oldy, oldx = self.pad.getyx()
@@ -1179,7 +1181,7 @@ class SpeedPad(InputDecodingMixIn, OutputEncodingMixIn):
         elif ch == curses.KEY_HOME or ch == curses.ascii.SOH:
             self.quotebox.ypos = 0
         elif ch == curses.KEY_END or ch == curses.ascii.ENQ:
-            self.quotebox.ypos = max(0, quote.ymax - self.quotebox.ymax)
+            self.quotebox.ypos = max(0, quote.ymax - self.quotebox.boxlines)
         elif ch == curses.KEY_PPAGE:
             self.quotebox.scroll(-(self.quotebox.ymax // 2), 0)
         elif ch == curses.KEY_NPAGE:
