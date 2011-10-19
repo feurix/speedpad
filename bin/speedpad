@@ -1417,9 +1417,13 @@ def main(*args, **kwargs):
                 argv = [recode_arg_for_fs(args.argv[0])] + args.argv[1:]
                 try:
                     yield subprocess.check_output(argv)[:maxsize]
+                except subprocess.CalledProcessError as e:
+                    raise QuoteCommandLineError(
+                            "%r returned non-zero exit status %d" %
+                            (argv, e.returncode))
                 except EnvironmentError as e:
-                    raise QuoteCommandLineError("%s: %r" %
-                                                (e.strerror, argv[0]))
+                    raise QuoteCommandLineError(
+                            "%s: %r" % (e.strerror, argv[0]))
     else:
         def factory(maxsize):
             for fn in args.argv:
@@ -1451,7 +1455,7 @@ def main(*args, **kwargs):
                             input_encoding=args.input_encoding,
                             output_encoding=args.output_encoding)
     except ValueError as e:
-        sys.stderr.write('error: %s\n' % e)
+        sys.stderr.write('Error: %s\n' % e)
         sys.exit(1)
     try:
         curses.wrapper(instance)
@@ -1460,7 +1464,7 @@ def main(*args, **kwargs):
     except (QuoteGeneratorError,
             QuoteFileSourceError,
             QuoteCommandLineError) as e:
-        sys.stderr.write('error: %s\n' % e)
+        sys.stderr.write('Error: %s\n' % e)
         sys.exit(2)
 
 if __name__ == '__main__':
