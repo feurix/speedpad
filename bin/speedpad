@@ -1298,6 +1298,9 @@ def main(*args, **kwargs):
     if sys.hexversion < 0x020700F0:
         sys.stderr.write("Require Python 2.7 or later!\n")
         sys.exit(1)
+    if sys.hexversion >= 0x03000000:
+        sys.stderr.write("Require Python 2!\n")
+        sys.exit(1)
     import argparse
     import getpass
     import locale
