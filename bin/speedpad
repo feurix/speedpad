@@ -1476,11 +1476,6 @@ def main(*args, **kwargs):
                     raise QuoteCommandLineError("%s: %r" %
                                                 (e.strerror, e.filename))
 
-    #import pprint
-    #pprint.pprint(vars(parser))
-    #pprint.pprint(vars(args))
-    #sys.exit(0)
-
     try:
         instance = SpeedPad(factory,
                             wrap=args.wrap,
