@@ -1332,6 +1332,7 @@ def main(*args, **kwargs):
               grep ^foo words | %(prog)s                        read stdin
               %(prog)s -c -- fortune -s -n 500                  (default)
               %(prog)s -c -- fortune 40%% startrek 60%% linux
+              %(prog)s /usr/src/linux/README
               %(prog)s --code /usr/src/linux/mm/pagewalk.c
             """))
     parser.add_argument('--version', action='version',
