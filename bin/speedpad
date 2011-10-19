@@ -1271,6 +1271,21 @@ class QuoteCommandLineError(Exception): pass
 class QuoteFileSourceError(Exception): pass
 
 
+class QuoteCommandError(Exception):
+
+    def __init__(self, cmd, exitcode, stderr=None):
+        self.cmd = cmd
+        self.exitcode = exitcode
+        self.stderr = stderr
+
+    def __str__(self):
+        err = ("%r returned non-zero exit code %d" %
+               (self.cmd, self.exitcode))
+        if self.stderr:
+            err = "%s\n\n%s" % (err, self.stderr)
+        return err
+
+
 cps = SpeedUnit('cps')
 cpm = SpeedUnit('cpm')
 wpm = SpeedUnit('wpm')
@@ -1411,19 +1426,28 @@ def main(*args, **kwargs):
                     if not data: break
                     yield data
     elif args.cmd:
-        import subprocess
         def factory(maxsize):
+            import subprocess
+            argv = [recode_arg_for_fs(args.argv[0])] + args.argv[1:]
             while True:
-                argv = [recode_arg_for_fs(args.argv[0])] + args.argv[1:]
                 try:
-                    yield subprocess.check_output(argv)[:maxsize]
-                except subprocess.CalledProcessError as e:
-                    raise QuoteCommandLineError(
-                            "%r returned non-zero exit status %d" %
-                            (argv, e.returncode))
+                    process = subprocess.Popen(argv,
+                                               stdout=subprocess.PIPE,
+                                               stderr=subprocess.PIPE,
+                                               close_fds=True)
+                    try:
+                        stdout, stderr = process.communicate()
+                    except:
+                        process.kill()
+                        process.wait()
+                        raise
+                    retcode = process.poll()
+                    if retcode:
+                        raise QuoteCommandError(argv, retcode, stderr)
+                    yield stdout
                 except EnvironmentError as e:
-                    raise QuoteCommandLineError(
-                            "%s: %r" % (e.strerror, argv[0]))
+                    raise QuoteCommandLineError("%s: %r" %
+                                                (e.strerror, argv[0]))
     else:
         def factory(maxsize):
             for fn in args.argv:
@@ -1463,6 +1487,7 @@ def main(*args, **kwargs):
         sys.exit(0)
     except (QuoteGeneratorError,
             QuoteFileSourceError,
+            QuoteCommandError,
             QuoteCommandLineError) as e:
         sys.stderr.write('Error: %s\n' % e)
         sys.exit(2)
