@@ -1316,8 +1316,18 @@ def main(*args, **kwargs):
     parser = argparse.ArgumentParser(
             formatter_class=argparse.RawTextHelpFormatter,
             usage="%(prog)s [options] [--] [FILE [FILE ...]]\n "
-            "  or: %(prog)s [...]  -c [--] [CMD [ARG ...]]\n"
-            )
+            "      %(prog)s [...] -c [--] [CMD [ARG ...]]",
+            description="%(prog)s is a tool to test, train,"
+                        " and increase typing speed",
+            epilog=textwrap.dedent(
+            """
+            examples:
+              %(prog)s file1 file2 file3                        read files
+              grep ^foo words | %(prog)s                        read stdin
+              %(prog)s -c -- fortune -s -n 500                  (default)
+              %(prog)s -c -- fortune 40%% startrek 60%% linux
+              %(prog)s --code /usr/src/linux/mm/pagewalk.c
+            """))
     parser.add_argument('--version', action='version',
                         version='%%(prog)s %s' % __version__)
     parser.add_argument('--cmd', '-c', action='store_true',
