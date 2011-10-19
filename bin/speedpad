@@ -1481,8 +1481,8 @@ def main(*args, **kwargs):
                     with open(fn, 'rb') as fh:
                         yield fh.read(maxsize)
                 except EnvironmentError as e:
-                    raise QuoteCommandLineError("%s: %r" %
-                                                (e.strerror, e.filename))
+                    raise QuoteFileSourceError("%s: %r" %
+                                               (e.strerror, e.filename))
 
     try:
         instance = SpeedPad(factory,
