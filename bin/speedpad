@@ -870,12 +870,13 @@ class SpeedPad(InputDecodingMixIn, OutputEncodingMixIn):
         self.quotebox.resize(ydiff, xdiff)
         self.inputbox.resize(0, xdiff)
         self.inputbox.move(ydiff, 0)
-        ypos, xpos = self.inputbox.pad.getyx()
-        if ydiff < 0:
-            self.quotebox.ypos = max(0, ypos - self.quotebox.ymax)
-        if xdiff < 0:
-            self.quotebox.xpos = max(0, xpos - self.quotebox.xmax)
-            self.inputbox.xpos = max(0, xpos - self.inputbox.xmax)
+        if self.writable:
+            ypos, xpos = self.inputbox.pad.getyx()
+            if ydiff < 0:
+                self.quotebox.ypos = max(0, ypos - self.quotebox.ymax)
+            if xdiff < 0:
+                self.quotebox.xpos = max(0, xpos - self.quotebox.xmax)
+                self.inputbox.xpos = max(0, xpos - self.inputbox.xmax)
         self.draw_header()
         self.draw_quote_sep()
         self.draw_input_sep()
@@ -1059,8 +1060,8 @@ class SpeedPad(InputDecodingMixIn, OutputEncodingMixIn):
                         self.active = False
                         self.queue.clear()
                         if self.writable:
-                            self.start_pager(quote)
                             self.writable = False
+                            self.start_pager(quote)
                         else:
                             self.stop_pager()
                             break
