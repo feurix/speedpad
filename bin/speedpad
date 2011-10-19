@@ -267,6 +267,7 @@ class QuoteBox(PadBox):
 class InputBox(PadBox):
 
     def __init__(self, *args, **kwargs):
+        self.tabsize = kwargs.pop('tabsize', 8)
         super(InputBox, self).__init__(*args, **kwargs)
         self.pad.keypad(1)
         self.pad.timeout(0)
@@ -318,7 +319,13 @@ class InputBox(PadBox):
                 self.pad.move(ypos + 1, 0)
         elif ch in (curses.ascii.BS, curses.ascii.DEL, curses.KEY_BACKSPACE):
             if xpos > 0:
-                self.pad.move(ypos, min(xpos - 1, self.eol(ypos)))
+                if self.tabsize:
+                    trail = xpos % self.tabsize or self.tabsize
+                    prevtabstop = xpos - trail
+                    rightborder = max(prevtabstop, self.eol(ypos))
+                    self.pad.move(ypos, min(xpos - 1, rightborder))
+                else:
+                    self.pad.move(ypos, min(xpos - 1, self.eol(ypos)))
                 self.pad.delch()
             elif ypos > 0:
                 self.pad.move(ypos - 1, self.eol(ypos - 1))
@@ -795,6 +802,7 @@ class SpeedPad(InputDecodingMixIn, OutputEncodingMixIn):
                                  SpeedPad.SCR_YMIN - 1, SpeedPad.SCR_XMIN,
                                  SpeedPad.PAD_YMAX, SpeedPad.PAD_XMAX,
                                  0, 10,
+                                 tabsize=self.tabsize,
                                  input_encoding=self.input_encoding,
                                  output_encoding=self.output_encoding)
 
