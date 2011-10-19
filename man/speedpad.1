@@ -1,0 +1,123 @@
+.TH SPEEDPAD 1 "20 Oct 2011"
+.SH NAME
+speedpad \- ncurses tool to test, train, and increase typing speed
+.SH SYNOPSIS
+\fBspeedpad\fP [\fIOPTIONS\fP] [\fR\-\-\fP] [\fIFILE\fP [\fIFILE\fP .\|.\|.]]
+.br
+\fBspeedpad\fP [.\|.\|.] \-c [\fR\-\-\fP] [\fICMD\fP [\fIARG\fP .\|.\|.]]
+.SH DESCRIPTION
+speedpad is an interactive ncurses tool to test, train, and increase typing
+speed on arbitrary text input:
+.IP "o" 4
+designed for intermediate to advanced level typists
+.IP "o" 4
+assumes that you have already learned how to touch type
+.IP "o" 4
+no lessons, no single words, no synthetic stuff
+.IP "o" 4
+tab expansion, auto indentation and syntax support to train on code
+.IP "o" 4
+reference speed robot (defaults to 100 WPM)
+.IP "o" 4
+supports CPS, CPM, WPM, PPM, and CPH/KPH metrics
+.IP "o" 4
+shows detailed statistics about speed and typos
+.IP "o" 4
+helps to find and eliminate frequent typos
+
+.SH OPTIONS
+.TP
+\fB\-\-version\fP
+show version number and exit
+.TP
+\fB\-h, \-\-help\fP
+show help message and exit
+.TP
+\fB\-\-cmd, \-c\fP
+use positional arguments as command line (default: False)
+.TP
+\fB\-\-wpm\fP
+speed in words per minute (default: True)
+.TP
+\fB\-\-cpm\fP
+speed in chars per minute (default: False)
+.TP
+\fB\-\-cps\fP
+speed in chars per second (default: False)
+.TP
+\fB\-\-speed \fISPEED\fP
+reference speed in matching unit (default: 100.0)
+.TP
+\fB\-\-wrap \fIWIDTH\fP
+wrap text at specified width (default: 0)
+.br
+[<0 = disable, 0 = auto, >0 = fixed]
+.TP
+\fB\-\-user \fINAME\fP
+set custom user name (default: john)
+.TP
+\fB\-\-tabsize \fIN\fP
+set custom tabsize (default: 8)
+.TP
+\fB\-\-strict\fP
+require manual line breaks (default: False)
+.TP
+\fB\-\-indent\fP
+enable auto indentation (default: False)
+.TP
+\fB\-\-syntax\fP
+enable syntax support (default: False)
+.TP
+\fB\-\-no\-strip\fP
+keep excessive whitespace in text (default: False)
+.TP
+\fB\-\-no\-robot\fP
+disable the reference speed robot (default: False)
+.TP
+\fB\-\-no\-color\fP
+disable colors (default: False)
+.TP
+\fB\-\-code\fP
+equals \fB\-\-no\-strip \-\-indent \-\-syntax\fP
+
+.PP
+The following options should be used carefully:
+.TP
+\fB\-\-input\-encoding\fP \fIencoding\fP
+.TP
+\fB\-\-output\-encoding\fP \fIencoding\fP
+.TP
+\fB\-\-filesystem\-encoding\fP \fIencoding\fP
+.PP
+For a full list of supported encodings, see:
+.br
+http://docs.python.org/library/codecs.html#standard\-encodings
+
+.SH KEYBINDS
+.TP
+\fBENTER\fP
+load next quote (if not started)
+.TP
+\fBCTRL\-X\fP
+reset counters and position, restart quote (if started)
+.TP
+\fBCTRL\-D\fP
+stop current round and show statistics (if started)
+.TP
+\fBCTRL\-C\fP
+quit gracefully
+.PP
+\fBUP\fP/\fBDOWN\fP/\fBLEFT\fP/\fBRIGHT\fP
+.PP
+\fBPGUP\fP/\fBPGDOWN\fP/\fBHOME\fP/\fBEND\fP
+.PP
+Press \fIspace\fP, \fItab\fP, or any \fIalphanumeric\fP key to start typing.
+
+.SH SEE ALSO
+.BR gtypist (1)
+.BR typespeed (1)
+
+.SH AUTHOR
+speedpad and this man page was written by John Feuerstein.
+.PP
+http://www.feurix.org/
