@@ -417,7 +417,7 @@ class InputBox(PadBox):
             self.pad.addstr(3, xpos, " |  typos")
             self.pad.addstr(4, xpos, " expected")
             xpos += 11
-            places = min(79, self.boxcols) - xpos - 6
+            places = min(80, self.boxcols) - xpos - 6
             expand = lambda typos: typos[:places].ljust(places)
             for ypos, score in enumerate(highscore):
                 expected, typos = score
