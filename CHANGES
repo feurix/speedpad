@@ -1,0 +1,18 @@
+*********
+Changelog
+*********
+
+This is a brief overview of the changes introduced by each version.
+
+For the full changelog refer to the
+`Git version history <http://labs.feurix.org/misc/speedpad/log/>`_.
+
+
+speedpad 0.8
+------------
+
+:Date: Oct 16, 2011
+
+This is the first public version after reaching a usable state.
+
+.. vim: ft=rst

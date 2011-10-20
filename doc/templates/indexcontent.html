@@ -1,0 +1,121 @@
+{% extends "defindex.html" %}
+{% block body %}
+<h1>{{ docstitle|e }}</h1>
+<a href="http://www.gnu.org/licenses/gpl-3.0.html">
+  <img src="{{ pathto('_static/gplv3.png', 1) }}" alt="GPLv3 License" style="float: right" />
+</a>
+<p>
+Welcome! This is
+{% block description %}the documentation for {{ project|e }}
+version {{ release|e }}{% if last_updated %}, last updated {{ last_updated|e }}{% endif %}{% endblock %}.
+</p>
+
+<p class="primer"><strong>What is Speedpad?</strong></p>
+<p class="description">
+<strong>
+Speedpad is a small and portable, ncurses powered tool to test, train, and
+increase typing speed on arbitrary text input:
+</strong>
+</p>
+
+<ul class="description">
+  <li>designed for intermediate to advanced level typists</li>
+  <li>assumes that you have already learned how to touch type</li>
+  <li>no lessons, no single words, no synthetic stuff</li>
+  <li>tab expansion, auto indentation and syntax support to train on code</li>
+  <li>reference speed robot (defaults to 100 WPM)</li>
+  <li>supports CPS, CPM, WPM, PPM, and CPH/KPH metrics</li>
+  <li>shows detailed statistics about speed and typos</li>
+  <li>helps to find and eliminate frequent typos</li>
+</ul>
+
+<p class="description">
+Speedpad requires
+<a href="http://www.python.org/" target="_blank">
+  <strong>Python 2.7</strong>
+</a>
+or later.<br />
+We also recommend to install
+<a href="http://en.wikipedia.org/wiki/Fortune_(Unix)" target="_blank">
+  <strong>fortune</strong>
+</a>. (not required)
+</p>
+
+<p>
+  <strong>
+  <a class="download" href="http://speedpad.googlecode.com/files/speedpad-{{ version }}.tar.gz">
+    <img src="{{ pathto('_static/disk.png', 1) }}" alt="Download" />
+    Download Speedpad v{{ version }} [speedpad-{{ version }}.tar.gz]
+  </a>
+  </strong>
+</p>
+
+<hr />
+
+{% block tables %}
+<p><strong>Documentation:</strong></p>
+<table class="contentstable" align="center">
+  <tr>
+    <td width="50%">
+      <p class="biglink"><a class="biglink" href="{{ pathto("changes") }}">What's new in Speedpad v{{ version }}?</a><br/>
+      <span class="linkdescr">or see <a href="http://labs.feurix.org/misc/speedpad/log/">the complete changelog</a></span></p>
+      <p class="biglink"><a class="biglink" href="{{ pathto("contents") }}">Complete Table of Contents</a><br/>
+      <span class="linkdescr">lists all sections and subsections</span></p>
+    </td>
+    <td width="50%">
+      <p class="biglink"><a class="biglink" href="{{ pathto("screenshots") }}">Screenshots</a><br/>
+      <span class="linkdescr">some screenshots</span></p>
+      <p class="biglink"><a class="biglink" href="{{ pathto("keybinds") }}">Keybinds</a><br/>
+      <span class="linkdescr">keybind quickref</span></p>
+    </td>
+  </tr>
+</table>
+
+<p><strong>Meta information:</strong></p>
+<table class="contentstable" align="center">
+  <tr>
+    <td width="50%">
+      <p class="biglink"><a class="biglink" href="{{ pathto("license") }}">License and Copyright</a><br />
+      <span class="linkdescr">how you may use the code</span></p>
+      </td><td width="50%">
+      <p class="biglink"><a class="biglink" href="{{ pathto("bugs") }}">Reporting bugs</a><br />
+      <span class="linkdescr">please inform us of any problems</span></p>
+    </td>
+  </tr>
+</table>
+{% endblock %}
+
+<h2>Examples<a class="headerlink" href="#examples" title="Permalink to this headline">¶</a></h2>
+
+<p class="description">
+Here are some command line examples and ideas how to use speedpad:
+</p>
+<div class="highlight">
+<pre>
+speedpad file1 file2 file3                        read files
+grep ^foo words | speedpad                        read stdin
+speedpad -c -- fortune -s -n 500                  (default)
+speedpad -c -- fortune 40% startrek 60% linux
+speedpad /usr/src/linux/README
+speedpad --code /usr/src/linux/mm/pagewalk.c
+</pre>
+</div>
+
+<h2>Development<a class="headerlink" href="#development" title="Permalink to this headline">¶</a></h2>
+
+<p class="description">
+Getting the Speedpad source code using Git:
+</p>
+<div class="highlight">
+<pre>
+$ git clone git://labs.feurix.org/feurix/misc/speedpad.git
+</pre>
+</div>
+
+<p>
+  See also:
+  <a href="http://labs.feurix.org/misc/speedpad/" target="_blank"><em>Git Webinterface</em></a>,
+  <a href="http://labs.feurix.org/misc/speedpad/tree/" target="_blank"><em>Source Browser</em></a>
+</p>
+
+{% endblock %}

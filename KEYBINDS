@@ -1,0 +1,20 @@
+*****************
+Keybind Reference
+*****************
+::
+
+  Key           Action
+
+  ENTER         load next quote (if not started)
+
+  CTRL-X        reset counters and position, restart quote (if started)
+
+  CTRL-D        stop current round and show statistics (if started)
+
+  CTRL-C        quit gracefully
+
+  You can scroll the quote pager using UP / DOWN / PGUP / PGDOWN / HOME / END.
+
+  Press space, tab, or any alphanumeric key to start typing.
+
+.. vim: ft=rst

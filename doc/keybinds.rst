@@ -1,0 +1,4 @@
+.. _keybinds:
+
+.. include:: ../KEYBINDS
+

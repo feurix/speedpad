@@ -1,0 +1,80 @@
+*************
+Documentation
+*************
+
+**Speedpad is a small and portable, ncurses powered tool to test, train, and
+increase typing speed on arbitrary text input**
+
+    Author:  John Feuerstein <john@feurix.com>
+
+    License: GPLv3
+
+    Project URL: http://feurix.org/projects/speedpad/
+
+    Mirror URL: http://code.google.com/p/speedpad/
+
+    Development URL: http://labs.feurix.org/misc/speedpad/
+
+
+What is Speedpad?
+=================
+
+  * designed for intermediate to advanced level typists
+  * assumes that you have already learned how to touch type
+  * no lessons, no single words, no synthetic stuff
+  * tab expansion, auto indentation and syntax support to train on code
+  * reference speed robot (defaults to 100 WPM)
+  * supports CPS, CPM, WPM, PPM, and CPH/KPH metrics
+  * shows detailed statistics about speed and typos
+  * helps to find and eliminate frequent typos
+
+
+Installation
+============
+
+See ``INSTALL`` or refer to :ref:`install`
+
+
+Command line options
+====================
+
+Invoking speedpad with ``-h / --help`` results in:
+
+::
+
+  $ ./speedpad --help
+  usage: speedpad [options] [--] [FILE [FILE ...]]
+         speedpad [...] -c [--] [CMD [ARG ...]]
+
+  speedpad is a tool to test, train, and increase typing speed
+
+  optional arguments:
+    -h, --help     show this help message and exit
+    --version      show program's version number and exit
+    --cmd, -c      use positional arguments as command line (default: False)
+    --wpm          speed in words per minute (default: True)
+    --cpm          speed in chars per minute (default: False)
+    --cps          speed in chars per second (default: False)
+    --speed SPEED  reference speed in matching unit (default: 100.0)
+    --wrap WIDTH   wrap text at specified width (default: 0)
+                   [<0 = disable, 0 = auto, >0 = fixed]
+    --user NAME    set custom user name (default: john)
+    --tabsize N    set custom tabsize (default: 8)
+    --strict       require manual line breaks (default: False)
+    --indent       enable auto indentation (default: False)
+    --syntax       enable syntax support (default: False)
+    --no-strip     keep excessive whitespace in text (default: False)
+    --no-robot     disable the reference speed robot (default: False)
+    --no-color     disable colors (default: False)
+    --no-stats     disable stats dump on stdout (default: False)
+    --code         [--no-strip --indent --syntax]
+
+  examples:
+    speedpad file1 file2 file3                        read files
+    grep ^foo words | speedpad                        read stdin
+    speedpad -c -- fortune -s -n 500                  (default)
+    speedpad -c -- fortune 40% startrek 60% linux
+    speedpad /usr/src/linux/README
+    speedpad --code /usr/src/linux/mm/pagewalk.c
+
+.. vim: ft=rst
