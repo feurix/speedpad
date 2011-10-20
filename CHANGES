@@ -8,6 +8,24 @@ For the full changelog refer to the
 `Git version history <http://labs.feurix.org/misc/speedpad/log/>`_.
 
 
+speedpad 0.9
+------------
+
+:Date: Oct 20, 2011
+
+- Bugfix: Prevent screen corruption when scrolling with PGUP/DOWN
+
+- Bugfix: Handle quote input errors gracefully
+
+- Docs: Add initial speedpad(1) man page
+
+- Docs: Add initial sphinx powered documentation
+
+- Feature: Add support for UTF-8 multi-byte user input
+
+- Minor: Screen layout changes
+
+
 speedpad 0.8
 ------------
 
