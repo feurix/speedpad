@@ -382,7 +382,7 @@ class InputBox(PadBox):
     def draw_stats(self, quote, player):
         good = float(quote.stats.keystrokes_good)
         typo = float(quote.stats.keystrokes_typo)
-        total = float(good + typo)
+        total = float(quote.stats.keystrokes_total)
         if not total: return
 
         xpos = 0
@@ -469,6 +469,10 @@ class InputStats(object):
         if (ypos, xpos) in self.typos:
             self.typos[ypos, xpos] = False
         self.keystrokes_good += count
+
+    @property
+    def keystrokes_total(self):
+        return self.keystrokes_typo + self.keystrokes_good
 
     @property
     def speed(self):
