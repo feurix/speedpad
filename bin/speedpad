@@ -779,6 +779,7 @@ class SpeedPad(InputDecodingMixIn, OutputEncodingMixIn):
         self.speedunit = speedunit or cps
         self.player = player or Player(self.user or "user")
         self.robot = robot or self.speed and Robot("robot", self.speed)
+        self.stats = []
 
     def __call__(self, screen):
         """Start instance by calling it with an initialized screen"""
@@ -982,6 +983,25 @@ class SpeedPad(InputDecodingMixIn, OutputEncodingMixIn):
         self.screen.noutrefresh()
         curses.doupdate()
 
+    def store_stats(self, quote):
+        self.stats.append({
+            'len': quote.strlen,
+            'pos': self.player.pos,
+            'lines': quote.ymax,
+            'enter': quote.stats.keystrokes_enter,
+            'tab': quote.stats.keystrokes_tab,
+            'space': quote.stats.keystrokes_space,
+            'good': quote.stats.keystrokes_good,
+            'typo': quote.stats.keystrokes_typo,
+            'total': quote.stats.keystrokes_total,
+            'elapsed': quote.stats.timer.elapsed,
+            'cps': cps(self.player.speed),
+            'cpm': cpm(self.player.speed),
+            'wpm': wpm(self.player.speed),
+            'ppm': ppm(self.player.speed),
+            'cph': cph(self.player.speed),
+        })
+
     def show_cursor(self):
         if self.cursor is None or self.cursor: return
         try:
@@ -1074,6 +1094,7 @@ class SpeedPad(InputDecodingMixIn, OutputEncodingMixIn):
                         if self.writable:
                             self.writable = False
                             self.start_pager(quote)
+                            self.store_stats(quote)
                         else:
                             self.stop_pager()
                             break
@@ -1393,6 +1414,9 @@ def main(*args, **kwargs):
     parser.add_argument('--no-color', action='store_true',
                        help=("disable colors"
                              " (default: %(default)s)"))
+    parser.add_argument('--no-stats', action='store_true',
+                       help=("disable stats dump on stdout"
+                             " (default: %(default)s)"))
     parser.add_argument('--code', action='store_true',
                        help="[--no-strip --indent --syntax]")
     parser.add_argument('--input-encoding', default=io_encoding,
@@ -1515,6 +1539,37 @@ def main(*args, **kwargs):
             QuoteCommandLineError) as e:
         sys.stderr.write('Error: %s\n' % e)
         sys.exit(2)
+    finally:
+        if not args.no_stats:
+            stats = format_stats(instance.stats)
+            if stats:
+                sys.stdout.write(stats)
+                sys.stdout.write('\n')
+
+def format_stats(stats):
+    """Format stats into lines of machine-readable space separated fields"""
+    lines = ["# len pos lines enter tab space good typo total elapsed"
+             " cps cpm wpm ppm cph"]
+    for stat in stats:
+        line = (
+            "%(len)d"
+            " %(pos)d"
+            " %(lines)d"
+            " %(enter)d"
+            " %(tab)d"
+            " %(space)d"
+            " %(good)d"
+            " %(typo)d"
+            " %(total)d"
+            " %(elapsed).3f"
+            " %(cps).3f"
+            " %(cpm).3f"
+            " %(wpm).3f"
+            " %(ppm).3f"
+            " %(cph).3f"
+        ) % stat
+        lines.append(line)
+    return '' if len(lines) < 2 else '\n'.join(lines)
 
 if __name__ == '__main__':
     main()
