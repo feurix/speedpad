@@ -1466,12 +1466,19 @@ def main(*args, **kwargs):
         args.cmd = True
         args.argv = ['fortune', '-s', '-n', '500']
 
-    if not os.isatty(0):
-        if not os.isatty(2):
-            sys.stderr.write("Unable to find tty-like device!\n")
-            sys.exit(1)
+    if os.isatty(0):
+        ttyfd = 0
+    elif os.isatty(1):
+        ttyfd = 1
+    elif os.isatty(2):
+        ttyfd = 2
+    else:
+        sys.stderr.write("Unable to find tty-like device!\n")
+        sys.exit(1)
+    if ttyfd != 0:
+        # reconnect stdin to tty
         os.dup2(0, 3)
-        os.dup2(2, 0)
+        os.dup2(ttyfd, 0)
         def factory(maxsize):
             with os.fdopen(3, 'rb') as pipe:
                 while True:
@@ -1511,7 +1518,6 @@ def main(*args, **kwargs):
                 except EnvironmentError as e:
                     raise QuoteFileSourceError("%s: %r" %
                                                (e.strerror, e.filename))
-
     try:
         instance = SpeedPad(factory,
                             wrap=args.wrap,
@@ -1529,6 +1535,14 @@ def main(*args, **kwargs):
     except ValueError as e:
         sys.stderr.write('Error: %s\n' % e)
         sys.exit(1)
+
+    if os.isatty(1):
+        dump = sys.stdout
+    else:
+        # reconnect stdout to tty
+        os.dup2(1, 4)
+        dump = os.fdopen(4, 'wb')
+        os.dup2(ttyfd, 1)
     try:
         curses.wrapper(instance)
     except KeyboardInterrupt:
@@ -1543,8 +1557,8 @@ def main(*args, **kwargs):
         if not args.no_stats:
             stats = format_stats(instance.stats)
             if stats:
-                sys.stdout.write(stats)
-                sys.stdout.write('\n')
+                dump.write(stats)
+                dump.write('\n')
 
 def format_stats(stats):
     """Format stats into lines of machine-readable space separated fields"""
