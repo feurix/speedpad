@@ -122,7 +122,43 @@ quit forcefully and do not dump stats
 .PP
 Press \fIspace\fP, \fItab\fP, or any \fIalphanumeric\fP key to start typing.
 
+.SH EXAMPLES
+speedpad file1 file2 file3
+.br
+grep ^foo words | speedpad
+.br
+speedpad \-c \-\- fortune \-s \-n 500
+.br
+speedpad \-c \-\- fortune 40% startrek 60% linux
+.br
+speedpad /usr/src/linux/README
+.br
+speedpad \-\-code /usr/src/linux/mm/pagewalk.c
+
+.TP
+write stats to file:
+speedpad > \fIstats\fP
+.br
+speedpad >> \fIstats\fP  (append)
+.br
+speedpad \-o \fIstats\fP  (append)
+.TP
+show speed for all records:
+gnuplot \-p \-e "p '\fIstats\fP' u 15 s sb t 'wpm'"
+.TP
+show speed development over time:
+gnuplot \-p \-e "set xdata time; set timefmt '%s';
+               p '\fIstats\fP' u 1:15 s sb t 'wpm'"
+.TP
+show speed in relation to elapsed typing time:
+gnuplot \-p \-e "p '\fIstats\fP' u 3:15 s sb t 'wpm'"
+.TP
+show typos in relation to speed:
+gnuplot \-p \-e "p '\fIstats\fP' u 15:11 s sb t 'typos'"
+
 .SH SEE ALSO
+.BR fortune (6)
+.BR gnuplot (1)
 .BR gtypist (1)
 .BR typespeed (1)
 
