@@ -1571,11 +1571,13 @@ def main(*args, **kwargs):
     if dumpfd == outfd:
         def dump():
             stats = format_stats(instance.stats)
+            if not stats: return
             sys.stdout.write(stats)
             sys.stdout.write('\n')
     else:
         def dump():
             stats = format_stats(instance.stats)
+            if not stats: return
             with os.fdopen(dumpfd, 'ab') as fh:
                 fh.write(stats)
                 fh.write('\n')
