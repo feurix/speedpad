@@ -33,8 +33,11 @@ show version number and exit
 \fB\-h, \-\-help\fP
 show help message and exit
 .TP
-\fB\-\-cmd, \-c\fP
+\fB\-c\fP
 use positional arguments as command line (default: False)
+.TP
+\fB\-o\fP \fIFILE\fP
+write stats dump to file (default: <stdout>)
 .TP
 \fB\-\-wpm\fP
 speed in words per minute (default: True)
@@ -107,8 +110,11 @@ reset counters and position, restart quote (if started)
 \fBCTRL\-D\fP
 stop current round and show statistics (if started)
 .TP
+\fBCTRL\-Q\fP
+quit gracefully and dump stats
+.TP
 \fBCTRL\-C\fP
-quit gracefully
+quit forcefully and do not dump stats
 .PP
 \fBUP\fP/\fBDOWN\fP/\fBLEFT\fP/\fBRIGHT\fP
 .PP

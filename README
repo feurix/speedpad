@@ -51,7 +51,8 @@ Invoking speedpad with ``-h / --help`` results in:
   optional arguments:
     -h, --help     show this help message and exit
     --version      show program's version number and exit
-    --cmd, -c      use positional arguments as command line (default: False)
+    -c             use positional arguments as command line (default: False)
+    -o FILE        write stats dump to file (default: <stdout>)
     --wpm          speed in words per minute (default: True)
     --cpm          speed in chars per minute (default: False)
     --cps          speed in chars per second (default: False)

@@ -11,7 +11,9 @@ Keybind Reference
 
   CTRL-D        stop current round and show statistics (if started)
 
-  CTRL-C        quit gracefully
+  CTRL-Q        quit gracefully and dump stats
+
+  CTRL-C        quit forcefully and do not dump stats
 
   You can scroll the quote pager using UP / DOWN / PGUP / PGDOWN / HOME / END.
 
