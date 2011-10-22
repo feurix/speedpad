@@ -745,11 +745,12 @@ class SpeedPad(InputDecodingMixIn, OutputEncodingMixIn):
     PAD_XMAX = 200
     PAD_YMAX = 1000
 
-    def __init__(self, factory=lambda maxsize: [],
+    def __init__(self, factory=lambda maxsize: [], ttyfd=0,
                  strict=False, strip=True, color=True, indent=False,
                  syntax=False, user=None, robot=None, player=None,
                  wrap=0, tabsize=8, speed=0.0, speedunit=None,
                  input_encoding=None, output_encoding=None):
+        self.ttyfd = ttyfd
         self.input_encoding = input_encoding
         self.output_encoding = output_encoding
         if (self.input_encoding is not None and not
@@ -859,7 +860,7 @@ class SpeedPad(InputDecodingMixIn, OutputEncodingMixIn):
         return ymax, xmax
 
     def _sigwinchhandler(self, signum, frame):
-        size = fcntl.ioctl(2, tty.TIOCGWINSZ, '12345678')
+        size = fcntl.ioctl(self.ttyfd, tty.TIOCGWINSZ, '12345678')
         size = struct.unpack('4H', size)
         curses.resize_term(size[0], size[1])
         self.sync()
@@ -1304,7 +1305,8 @@ class QuoteBreakSignal(Exception): pass
 class QuoteResetSignal(Exception): pass
 class QuoteGeneratorError(Exception): pass
 class QuoteCommandLineError(Exception): pass
-class QuoteFileSourceError(Exception): pass
+class QuoteFileError(Exception): pass
+class QuotePipeError(Exception): pass
 
 
 class QuoteCommandError(Exception):
@@ -1342,6 +1344,9 @@ def main(*args, **kwargs):
     import locale
     import os
 
+    infd = sys.stdin.fileno()
+    outfd = sys.stdout.fileno()
+    errfd = sys.stderr.fileno()
     locale.setlocale(locale.LC_ALL, '')
     io_encoding = locale.getpreferredencoding()
     fs_encoding = sys.getfilesystemencoding()
@@ -1370,9 +1375,12 @@ def main(*args, **kwargs):
             """))
     parser.add_argument('--version', action='version',
                         version='%%(prog)s %s' % __version__)
-    parser.add_argument('--cmd', '-c', action='store_true',
+    parser.add_argument('-c', dest='cmd', action='store_true',
                        help=("use positional arguments as command line"
                              " (default: %(default)s)"))
+    parser.add_argument('-o', dest='outfile', metavar='FILE',
+                        help=("write stats dump to file"
+                              " (default: <stdout>)"))
     group = parser.add_mutually_exclusive_group()
     group.add_argument('--wpm', action='store_true', default=True,
                        help=("speed in words per minute"
@@ -1415,7 +1423,7 @@ def main(*args, **kwargs):
                        help=("disable colors"
                              " (default: %(default)s)"))
     parser.add_argument('--no-stats', action='store_true',
-                       help=("disable stats dump on stdout"
+                       help=("disable stats dump on exit"
                              " (default: %(default)s)"))
     parser.add_argument('--code', action='store_true',
                        help="[--no-strip --indent --syntax]")
@@ -1466,25 +1474,30 @@ def main(*args, **kwargs):
         args.cmd = True
         args.argv = ['fortune', '-s', '-n', '500']
 
-    if os.isatty(0):
-        ttyfd = 0
-    elif os.isatty(1):
-        ttyfd = 1
-    elif os.isatty(2):
-        ttyfd = 2
+    if os.isatty(infd):
+        ttyfd = infd
+    elif os.isatty(outfd):
+        ttyfd = outfd
+    elif os.isatty(errfd):
+        ttyfd = errfd
     else:
         sys.stderr.write("Unable to find tty-like device!\n")
         sys.exit(1)
-    if ttyfd != 0:
+
+    if ttyfd != infd:
         # reconnect stdin to tty
-        os.dup2(0, 3)
-        os.dup2(ttyfd, 0)
+        pipefd = 3
+        os.dup2(infd, pipefd)
+        os.dup2(ttyfd, infd)
         def factory(maxsize):
-            with os.fdopen(3, 'rb') as pipe:
-                while True:
-                    data = pipe.read(maxsize)
-                    if not data: break
-                    yield data
+            try:
+                with os.fdopen(pipefd, 'rb') as pipe:
+                    while True:
+                        data = pipe.read(maxsize)
+                        if not data: break
+                        yield data
+            except EnvironmentError as e:
+                raise QuotePipeError(e.strerror)
     elif args.cmd:
         def factory(maxsize):
             import subprocess
@@ -1516,10 +1529,12 @@ def main(*args, **kwargs):
                     with open(fn, 'rb') as fh:
                         yield fh.read(maxsize)
                 except EnvironmentError as e:
-                    raise QuoteFileSourceError("%s: %r" %
-                                               (e.strerror, e.filename))
+                    raise QuoteFileError("%s: %r" %
+                                         (e.strerror, e.filename))
+
     try:
         instance = SpeedPad(factory,
+                            ttyfd=ttyfd,
                             wrap=args.wrap,
                             strict=args.strict,
                             strip=not args.no_strip,
@@ -1536,29 +1551,54 @@ def main(*args, **kwargs):
         sys.stderr.write('Error: %s\n' % e)
         sys.exit(1)
 
-    if os.isatty(1):
-        dump = sys.stdout
+    if os.isatty(outfd):
+        dumpfd = outfd
     else:
         # reconnect stdout to tty
-        os.dup2(1, 4)
-        dump = os.fdopen(4, 'wb')
-        os.dup2(ttyfd, 1)
+        dumpfd = 4
+        os.dup2(outfd, dumpfd)
+        os.dup2(ttyfd, outfd)
+    if args.outfile:
+        if dumpfd != outfd:
+            os.close(dumpfd)
+        try:
+            dumpfd = os.open(args.outfile,
+                             os.O_CREAT | os.O_WRONLY | os.O_APPEND)
+        except EnvironmentError as e:
+            sys.stderr.write("Error: %s: %r\n" % (e.strerror, e.filename))
+            sys.exit(1)
+
+    if dumpfd == outfd:
+        def dump():
+            stats = format_stats(instance.stats)
+            sys.stdout.write(stats)
+            sys.stdout.write('\n')
+    else:
+        def dump():
+            stats = format_stats(instance.stats)
+            with os.fdopen(dumpfd, 'ab') as fh:
+                fh.write(stats)
+                fh.write('\n')
+
+    exitcode = 0
     try:
         curses.wrapper(instance)
     except KeyboardInterrupt:
-        sys.exit(0)
+        pass
     except (QuoteGeneratorError,
-            QuoteFileSourceError,
+            QuotePipeError,
+            QuoteFileError,
             QuoteCommandError,
             QuoteCommandLineError) as e:
         sys.stderr.write('Error: %s\n' % e)
-        sys.exit(2)
-    finally:
-        if not args.no_stats:
-            stats = format_stats(instance.stats)
-            if stats:
-                dump.write(stats)
-                dump.write('\n')
+        exitcode = 2
+    try:
+        dump()
+    except EnvironmentError as e:
+        sys.stderr.write('Error: %s\n' % e.strerror)
+        exitcode = 3
+
+    sys.exit(exitcode)
 
 def format_stats(stats):
     """Format stats into lines of machine-readable space separated fields"""
