@@ -1583,7 +1583,7 @@ def main(*args, **kwargs):
             os.close(dumpfd)
         try:
             dumpfd = os.open(args.outfile,
-                             os.O_CREAT | os.O_WRONLY | os.O_APPEND)
+                             os.O_CREAT | os.O_WRONLY | os.O_APPEND, 0600)
         except EnvironmentError as e:
             sys.stderr.write("Error: %s: %r\n" % (e.strerror, e.filename))
             sys.exit(1)
