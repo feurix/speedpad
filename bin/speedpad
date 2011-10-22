@@ -987,6 +987,9 @@ class SpeedPad(InputDecodingMixIn, OutputEncodingMixIn):
 
     def store_stats(self, quote):
         self.stats.append({
+            'started': quote.stats.timer.started,
+            'stopped': quote.stats.timer.stopped,
+            'elapsed': quote.stats.timer.elapsed,
             'len': quote.strlen,
             'pos': self.player.pos,
             'lines': quote.ymax,
@@ -996,7 +999,6 @@ class SpeedPad(InputDecodingMixIn, OutputEncodingMixIn):
             'good': quote.stats.keystrokes_good,
             'typo': quote.stats.keystrokes_typo,
             'total': quote.stats.keystrokes_total,
-            'elapsed': quote.stats.timer.elapsed,
             'cps': cps(self.player.speed),
             'cpm': cpm(self.player.speed),
             'wpm': wpm(self.player.speed),
@@ -1612,11 +1614,15 @@ def main(*args, **kwargs):
 
 def format_stats(stats):
     """Format stats into lines of machine-readable space separated fields"""
-    lines = ["# len pos lines enter tab space good typo total elapsed"
+    lines = ["# started stopped elapsed len pos lines"
+             " enter tab space good typo total"
              " cps cpm wpm ppm cph"]
     for stat in stats:
         line = (
-            "%(len)d"
+            "%(started).3f"
+            " %(stopped).3f"
+            " %(elapsed).3f"
+            " %(len)d"
             " %(pos)d"
             " %(lines)d"
             " %(enter)d"
@@ -1625,7 +1631,6 @@ def format_stats(stats):
             " %(good)d"
             " %(typo)d"
             " %(total)d"
-            " %(elapsed).3f"
             " %(cps).3f"
             " %(cpm).3f"
             " %(wpm).3f"
