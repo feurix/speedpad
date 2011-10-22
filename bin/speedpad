@@ -796,6 +796,7 @@ class SpeedPad(InputDecodingMixIn, OutputEncodingMixIn):
 
     def initscreen(self):
         """Initialize screen, boxes, windows and pads"""
+        curses.raw()
         self.speedbox = SpeedBox(2, 0,
                                  4 if self.robot else 3, self.xmax,
                                  output_encoding=self.output_encoding)
@@ -960,7 +961,7 @@ class SpeedPad(InputDecodingMixIn, OutputEncodingMixIn):
         self.screen.hline(ypos, 0, curses.ascii.SP, self.xmax, attr)
         self.screen.addstr(ypos, 0, "CTRL-X", attr)
         self.screen.addstr(ypos, 0 + 7, "RESET", attr | curses.A_BOLD)
-        self.screen.addstr(ypos, self.xmax - 11, "CTRL-C", attr)
+        self.screen.addstr(ypos, self.xmax - 11, "CTRL-Q", attr)
         self.screen.insstr(ypos, self.xmax - 4, "QUIT",
                            attr | curses.A_BOLD)
 
@@ -1205,6 +1206,10 @@ class SpeedPad(InputDecodingMixIn, OutputEncodingMixIn):
         # CONTROLS
         elif ch == curses.ascii.FF:
             pass
+        elif ch == curses.ascii.ETX:
+            raise KeyboardInterrupt
+        elif ch == curses.ascii.DC1:
+            raise StopSignal
         elif ch == curses.ascii.EOT:
             if self.active:
                 quote.stats.timer.stop()
@@ -1300,6 +1305,7 @@ class Speed(float):
         return self.cps * 3600.0
 
 
+class StopSignal(Exception): pass
 class QuoteStopSignal(Exception): pass
 class QuoteBreakSignal(Exception): pass
 class QuoteResetSignal(Exception): pass
@@ -1586,6 +1592,8 @@ def main(*args, **kwargs):
     try:
         curses.wrapper(instance)
     except KeyboardInterrupt:
+        sys.exit(0)
+    except StopSignal:
         pass
     except (QuoteGeneratorError,
             QuotePipeError,
