@@ -59,7 +59,7 @@ Invoking speedpad with ``-h / --help`` results in:
     --speed SPEED  reference speed in matching unit (default: 100.0)
     --wrap WIDTH   wrap text at specified width (default: 0)
                    [<0 = disable, 0 = auto, >0 = fixed]
-    --user NAME    set custom user name (default: john)
+    --user NAME    set custom user name (default: <login name>)
     --tabsize N    set custom tabsize (default: 8)
     --strict       require manual line breaks (default: False)
     --indent       enable auto indentation (default: False)
