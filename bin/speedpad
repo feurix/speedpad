@@ -1206,18 +1206,18 @@ class SpeedPad(InputDecodingMixIn, OutputEncodingMixIn):
                                 indent=self.indent)
                         self.queue.extend(continuation)
         # CONTROLS
-        elif ch == curses.ascii.FF:
+        elif ch == curses.ascii.FF:         # ^L
             pass
-        elif ch == curses.ascii.ETX:
+        elif ch == curses.ascii.ETX:        # ^C
             raise KeyboardInterrupt
-        elif ch == curses.ascii.DC1:
+        elif ch == curses.ascii.DC1:        # ^Q
             raise StopSignal
-        elif ch == curses.ascii.EOT:
+        elif ch == curses.ascii.EOT:        # ^D
             if self.active:
                 quote.stats.timer.stop()
                 raise QuoteStopSignal
             raise QuoteBreakSignal
-        elif ch == curses.ascii.CAN:
+        elif ch == curses.ascii.CAN:        # ^X
             raise QuoteResetSignal
         # SCROLLING
         elif ch == curses.KEY_HOME or ch == curses.ascii.SOH:
