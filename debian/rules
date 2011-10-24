@@ -9,8 +9,10 @@ clean:
 	dh_testroot
 	dh_clean
 
-build:
-# We have nothing to do by default.
+build: build-arch build-indep
+build-arch: build-stamp
+build-indep: build-stamp
+build-stamp:
 
 install:
 	dh_testdir
@@ -19,7 +21,6 @@ install:
 	dh_install
 
 binary-arch: build install
-# We have nothing to do by default.
 
 binary-indep: build install
 	dh_testdir
