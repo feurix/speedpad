@@ -144,17 +144,21 @@ speedpad >> \fIstats\fP  (append)
 speedpad \-o \fIstats\fP  (append)
 .TP
 show speed for all records:
-gnuplot \-p \-e "p '\fIstats\fP' u 15 s sb t 'wpm'"
+gnuplot \-p \-e "plot '\fIstats\fP' using 15
+               smooth sbezier title 'wpm'"
 .TP
 show speed development over time:
 gnuplot \-p \-e "set xdata time; set timefmt '%s';
-               p '\fIstats\fP' u 1:15 s sb t 'wpm'"
+               plot '\fIstats\fP' using 1:15
+               smooth sbezier title 'wpm'"
 .TP
 show speed in relation to elapsed typing time:
-gnuplot \-p \-e "p '\fIstats\fP' u 3:15 s sb t 'wpm'"
+gnuplot \-p \-e "plot '\fIstats\fP' using 3:15
+               smooth sbezier title 'wpm'"
 .TP
 show typos in relation to speed:
-gnuplot \-p \-e "p '\fIstats\fP' u 15:11 s sb t 'typos'"
+gnuplot \-p \-e "plot '\fIstats\fP' using 15:11
+               smooth sbezier title 'typos'"
 
 .SH SEE ALSO
 .BR fortune (6)

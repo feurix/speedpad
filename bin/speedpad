@@ -1381,17 +1381,7 @@ def main(*args, **kwargs):
               %(prog)s /usr/src/linux/README
               %(prog)s --code /usr/src/linux/mm/pagewalk.c
 
-              append records to file:
-                %(prog)s -o stats
-              show speed for all records:
-                gnuplot -p -e "p 'stats' u 15 s sb t 'wpm'"
-              show speed development over time:
-                gnuplot -p -e "set xdata time; set timefmt '%%s';
-                               p 'stats' u 1:15 s sb t 'wpm'"
-              show speed in relation to elapsed typing time:
-                gnuplot -p -e "p 'stats' u 3:15 s sb t 'wpm'"
-              show typos in relation to speed:
-                gnuplot -p -e "p 'stats' u 15:11 s sb t 'typos'"
+            see %(prog)s(1) for more options and gnuplot(1) examples
             """))
     parser.add_argument('--version', action='version',
                         version='%%(prog)s %s' % __version__)
