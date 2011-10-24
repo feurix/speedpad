@@ -3,7 +3,7 @@ Section: misc
 Priority: optional
 Maintainer: John Feuerstein <john@feurix.com>
 Build-Depends: debhelper (>= 7.0.50~)
-Standards-Version: 3.9.1
+Standards-Version: 3.9.2
 Homepage: http://feurix.org/projects/speedpad/
 Vcs-Git: git://labs.feurix.org/feurix/misc/speedpad.git
 Vcs-Browser: http://labs.feurix.org/misc/speedpad/
