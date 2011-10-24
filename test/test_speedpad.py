@@ -1517,6 +1517,14 @@ class TestSpeedPad(CursesTestCase):
         self.instance.writable = False
         self.assertRaises(speedpad.QuoteBreakSignal,
                           process, curses.ascii.EOT)
+        # quit gracefully
+        reset(["foo bar"])
+        self.assertRaises(speedpad.StopSignal,
+                          process, curses.ascii.DC1)
+        # quit forcefully
+        reset(["foo bar"])
+        self.assertRaises(KeyboardInterrupt,
+                          process, curses.ascii.ETX)
 
 
 def str2ord(s):
