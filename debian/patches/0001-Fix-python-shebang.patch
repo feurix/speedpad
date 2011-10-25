@@ -1,0 +1,32 @@
+From: John Feuerstein <john@feurix.com>
+Date: Tue, 25 Oct 2011 14:25:37 +0200
+Subject: Fix python shebang
+
+http://www.debian.org/doc/packaging-manuals/python-policy/ch-python.html
+
+1.4.2 Interpreter Location
+
+The preferred specification for the Python interpreter is
+/usr/bin/python or /usr/bin/pythonX.Y. This ensures that a Debian
+installation of python is used and all dependencies on additional python
+modules are met.
+
+Maintainers should not override the Debian Python interpreter using
+/usr/bin/env python or /usr/bin/env pythonX.Y. This is not advisable as
+it bypasses Debian's dependency checking and makes the package
+vulnerable to incomplete local installations of python.
+---
+ bin/speedpad |    2 +-
+ 1 files changed, 1 insertions(+), 1 deletions(-)
+
+diff --git a/bin/speedpad b/bin/speedpad
+index 9e47831..cf384e3 100755
+--- a/bin/speedpad
++++ b/bin/speedpad
+@@ -1,4 +1,4 @@
+-#!/usr/bin/env python
++#!/usr/bin/python
+ #
+ # Copyright (C) 2011 John Feuerstein <john@feurix.com>
+ #
+-- 
