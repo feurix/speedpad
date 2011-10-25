@@ -22,7 +22,7 @@
 __author__ = 'John Feuerstein <john@feurix.com>'
 __copyright__ = 'Copyright (C) 2011 %s' % __author__
 __license__ = 'GNU GPLv3'
-__version__ = '0.9'
+__version__ = '1.0'
 
 import codecs
 import collections
