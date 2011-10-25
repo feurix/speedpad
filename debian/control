@@ -17,14 +17,14 @@ Description: ncurses tool to test, train, and increase typing speed
  Speedpad is a small and portable, ncurses powered tool to test, train, and
  increase typing speed on arbitrary text input:
  .
- * designed for intermediate to advanced level typists
- * assumes that you have already learned how to touch type
- * no lessons, no single words, no synthetic stuff
- * tab expansion, auto indentation and syntax support to train on code
- * reference speed robot (defaults to 100 WPM)
- * supports CPS, CPM, WPM, PPM, and CPH/KPH metrics
- * shows detailed statistics about speed and typos
- * helps to find and eliminate frequent typos
+  * designed for intermediate to advanced level typists
+  * assumes that you have already learned how to touch type
+  * no lessons, no single words, no synthetic stuff
+  * tab expansion, auto indentation and syntax support to train on code
+  * reference speed robot (defaults to 100 WPM)
+  * supports CPS, CPM, WPM, PPM, and CPH/KPH metrics
+  * shows detailed statistics about speed and typos
+  * helps to find and eliminate frequent typos
  .
  Speedpad uses fortune(6) to generate quotes if no input is provided. It
  dumps statistics to standard output in machine-readable format. This can
