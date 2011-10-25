@@ -8,6 +8,21 @@ For the full changelog refer to the
 `Git version history <http://labs.feurix.org/misc/speedpad/log/>`_.
 
 
+speedpad 1.0
+------------
+
+:Date: Oct 25, 2011
+
+- Bugfix: Handle redirected standard input and output
+
+- Feature: Use CTRL-Q to quit gracefully, CTRL-C to quit forcefully
+
+- Feature: Add -o to append stats dump to file
+
+- Feature: Add timer information to stats dump
+
+- Docs: Add gnuplot(1) examples and screenshots
+
 speedpad 0.9
 ------------
 
@@ -24,7 +39,6 @@ speedpad 0.9
 - Feature: Add support for UTF-8 multi-byte user input
 
 - Minor: Screen layout changes
-
 
 speedpad 0.8
 ------------
